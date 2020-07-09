@@ -18,6 +18,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import axxes.prototype.trucktracker.fragment.FragmentConnexionBDO
+import axxes.prototype.trucktracker.fragment.FragmentJourney
 import axxes.prototype.trucktracker.fragment.FragmentMenuInformations
 import axxes.prototype.trucktracker.model.DSRCAttribut
 import axxes.prototype.trucktracker.service.MainService
@@ -33,6 +34,7 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
 
     private val fragmentMenuInformations = FragmentMenuInformations()
     private val fragmentConnexionBDO = FragmentConnexionBDO()
+    private val fragmentJourney = FragmentJourney()
 
     private lateinit var deviceSelected: BluetoothDevice
 
@@ -79,9 +81,11 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         }
 
         gotoFragment(fragmentConnexionBDO)
+
         if(sharedPreferences.contains(SharedPreferenceUtils.KEY_DEVICE_ADDRESS)
             && sharedPreferences.contains(SharedPreferenceUtils.KEY_DEVICE_NAME)){
-            fragmentConnexionBDO.setDeviceAutoConnexion(sharedPreferences.getString(SharedPreferenceUtils.KEY_DEVICE_ADDRESS, ""))
+            val deviceAC = bluetoothAdapter.getRemoteDevice(sharedPreferences.getString(SharedPreferenceUtils.KEY_DEVICE_ADDRESS, null))
+            fragmentConnexionBDO.setDeviceAutoConnexion(deviceAC)
         }
     }
 
@@ -182,6 +186,15 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         builderDialog.setTitle(title)
             .setView(dialogView)
             .setCancelable(false)
+        return builderDialog.create()
+    }
+    private fun createErrorDialog(title: String): AlertDialog{
+        val builderDialog = AlertDialog.Builder(this)
+        val inflater = this.layoutInflater
+        val dialogView = inflater.inflate(R.layout.dialog_error, null)
+        builderDialog.setTitle(title)
+            .setView(dialogView)
+            .setCancelable(true)
         return builderDialog.create()
     }
 
@@ -304,10 +317,16 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
                             dialogConnection!!.show()
                         }
                         MainService.STATE_DISCONNECTED -> {
-                            //TODO Dialog disconnected0
+                            //TODO Dialog disconnected
                         }
                         MainService.STATE_DISCONNECTING -> {
                             //TODO Dialog disconnecting
+                        }
+                        MainService.STATE_FAILURE -> {
+                            //TODO Dialog disconnecting
+                            dialogConnection!!.hide()
+                            dialogConnection = null
+                            dialogConnection = createErrorDialog("Error, device not found !")
                         }
                         else -> {
                             //TODO Not handled
@@ -340,6 +359,6 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
     }
 
     override fun onClickValide() {
-
+        replaceFragment(fragmentJourney, false)
     }
 }

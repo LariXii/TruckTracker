@@ -27,6 +27,7 @@ import axxes.prototype.trucktracker.DeviceBluetoothGatt
 import axxes.prototype.trucktracker.model.DSRCAttribut
 import axxes.prototype.trucktracker.manager.DSRCManager
 import axxes.prototype.trucktracker.utils.ServiceDsrcUtils
+import axxes.prototype.trucktracker.utils.SharedPreferenceUtils
 
 
 /**
@@ -119,7 +120,8 @@ class MainService : Service(){
                         }
                     }
                     BluetoothGatt.GATT_FAILURE -> {
-
+                        stateBluetoothGatt = STATE_FAILURE
+                        sendBroadcastStateBDO()
                     }
                 }
             }
@@ -133,6 +135,7 @@ class MainService : Service(){
             override fun responseNotificationEnabled() {
                 stateBluetoothGatt = STATE_CONNECTED
                 sendBroadcastStateBDO()
+                saveDeviceToPreference()
             }
 
             override fun onCharacteristicWrite(
@@ -224,6 +227,15 @@ class MainService : Service(){
     fun disconnectToBDO(){
         deviceBluetoothGatt.disconnectBLE()
         deviceBluetoothGatt.closeBLE()
+    }
+
+    private fun saveDeviceToPreference(){
+        SharedPreferenceUtils.saveStringPreference(applicationContext, SharedPreferenceUtils.KEY_DEVICE_NAME,
+            device?.name
+        )
+        SharedPreferenceUtils.saveStringPreference(applicationContext, SharedPreferenceUtils.KEY_DEVICE_ADDRESS,
+            device?.address
+        )
     }
 
     fun getMultipleAttributes(attributes: List<DSRCAttribut>){
@@ -391,6 +403,7 @@ class MainService : Service(){
         internal const val STATE_CONNECTING = 11
         internal const val STATE_DISCONNECTED = 12
         internal const val STATE_DISCONNECTING = 13
+        internal const val STATE_FAILURE = -10
     }
 }
 
