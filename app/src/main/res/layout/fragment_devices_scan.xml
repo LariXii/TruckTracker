@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fragment_devices_scan"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <Button
+        android:id="@+id/fsd_btn_close"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="@drawable/ic_action_close"
+        android:layout_alignParentEnd="true"/>
+
+    <TextView
+        android:id="@+id/fsd_tv_Scanning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/scanning"
+        android:textSize="20sp"
+        android:gravity="center"
+        android:layout_marginBottom="5dp"
+        android:visibility="invisible"/>
+
+    <ProgressBar
+        android:id="@+id/fsd_pbar"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@+id/fsd_tv_Scanning"
+        android:layout_marginBottom="5dp"
+        android:visibility="invisible"/>
+
+    <ListView
+        android:id="@+id/fsd_lv_paired_devices"
+        android:layout_width="match_parent"
+        android:layout_height="400dp"
+        android:layout_below="@id/fsd_pbar"
+        android:layout_marginTop="20dp"/>
+
+    <Button
+        android:id="@+id/fsd_btn_scan"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@+id/fsd_lv_paired_devices"
+        android:layout_marginTop="10dp"
+        android:text="@string/scanner"/>
+
+</RelativeLayout>

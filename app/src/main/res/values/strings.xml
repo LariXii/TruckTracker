@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">TruckTracker</string>
+
+    <string name="welcome">Bienvenue</string>
+    <string name="connect_bdo">Connection auto</string>
+    <string name="scanner">Scanner</string>
+    <string name="scanning">Scanning devices…</string>
+    <string name="unknown_device">Unknown</string>
+
+    <string name="permission_rationale">Location permission needed for core functionality</string>
+    <string name="ok">Ok</string>
+    <string name="bdo_not_saved">Pas de BDO sauvegardé</string>
+
+    <string name="hint_name">Nom</string>
+    <string name="hint_tyre_type">Type de roue</string>
+    <string name="hint_trailer_axles">Essieu de remorque</string>
+    <string name="hint_tractor_axles">Essieu de tracteur</string>
+    <string name="validate">Valider</string>
+</resources>
