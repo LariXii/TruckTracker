@@ -13,22 +13,23 @@ import android.os.IBinder
 import android.util.Log
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
+import androidx.core.content.edit
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
-import androidx.fragment.app.FragmentTransaction
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import axxes.prototype.trucktracker.fragment.FragmentConnexionBDO
 import axxes.prototype.trucktracker.fragment.FragmentMenuInformations
-import axxes.prototype.trucktracker.manager.DSRCAttributManager
 import axxes.prototype.trucktracker.model.DSRCAttribut
 import axxes.prototype.trucktracker.service.MainService
+import axxes.prototype.trucktracker.utils.SharedPreferenceUtils
 import com.google.android.material.snackbar.Snackbar
 
-class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentConnexionBDO {
+class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentConnexionBDO, FragmentMenuInformations.ListenerFragmentMenuInformations {
 
     private lateinit var bluetoothManager: BluetoothManager
     private lateinit var bluetoothAdapter: BluetoothAdapter
     private lateinit var fragmentManager: FragmentManager
+    private lateinit var sharedPreferences: SharedPreferences
 
     private val fragmentMenuInformations = FragmentMenuInformations()
     private val fragmentConnexionBDO = FragmentConnexionBDO()
@@ -65,6 +66,8 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         bluetoothAdapter = bluetoothManager.adapter
         fragmentManager = supportFragmentManager
 
+        sharedPreferences = getSharedPreferences(SharedPreferenceUtils.PREFERENCE_KEY, Context.MODE_PRIVATE)
+
         mainServiceBroadcastReceiver = ForegroundOnlyBroadcastReceiver()
 
         // Permissions
@@ -76,6 +79,10 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         }
 
         gotoFragment(fragmentConnexionBDO)
+        if(sharedPreferences.contains(SharedPreferenceUtils.KEY_DEVICE_ADDRESS)
+            && sharedPreferences.contains(SharedPreferenceUtils.KEY_DEVICE_NAME)){
+            fragmentConnexionBDO.setDeviceAutoConnexion(sharedPreferences.getString(SharedPreferenceUtils.KEY_DEVICE_ADDRESS, ""))
+        }
     }
 
     override fun onStart() {
@@ -87,7 +94,7 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
             IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_BDO_STATE)
         )
         LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
-            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS)
+            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS)
         )
         LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
             IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY)
@@ -182,6 +189,8 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         deviceSelected = device
         Log.d(TAG,"Device selected : ${device.name}\n${device.address}")
         if(mainServiceBound){
+            SharedPreferenceUtils.saveStringPreference(this,SharedPreferenceUtils.KEY_DEVICE_NAME, deviceSelected.name)
+            SharedPreferenceUtils.saveStringPreference(this,SharedPreferenceUtils.KEY_DEVICE_ADDRESS, deviceSelected.address)
             mainService?.connectToBDO(deviceSelected)
         }
     }
@@ -288,18 +297,6 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
                             replaceFragment(fragmentMenuInformations, true)
                             dialogConnection!!.hide()
                             dialogConnection = null
-
-                            val listAttribut: MutableList<DSRCAttribut> = mutableListOf()
-                            var attribut = DSRCAttributManager.finAttribut(1, 4)
-                            attribut?.let{listAttribut.add(it)}
-                            attribut = DSRCAttributManager.finAttribut(1, 19)
-                            attribut?.let{listAttribut.add(it)}
-                            attribut = DSRCAttributManager.finAttribut(1, 24)
-                            attribut?.let{listAttribut.add(it)}
-
-                            mainService?.getMultipleAttributes(listAttribut)
-                            /*dialogConnection = createConnectionDialog("Chargement des données...")
-                            dialogConnection!!.show()*/
                         }
                         MainService.STATE_CONNECTING -> {
                             //TODO Dialog connecting
@@ -320,8 +317,8 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
                 MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS -> {
                     val values = intent.getParcelableArrayExtra(MainService.EXTRA_MENU_INFORMATIONS)
                     if(values != null){
-                        /*dialogConnection!!.hide()
-                        dialogConnection = null*/
+                        dialogConnection!!.hide()
+                        dialogConnection = null
                         fragmentMenuInformations.setValuesMenu(values.toList() as List<DSRCAttribut>)
                     }
                 }
@@ -334,5 +331,15 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
 
     companion object{
         private const val TAG = "MainActivity"
+    }
+
+    override fun onGetAttributesMenu(listAttribut: MutableList<DSRCAttribut>) {
+        mainService?.getMultipleAttributes(listAttribut)
+        dialogConnection = createConnectionDialog("Chargement des données...")
+        dialogConnection!!.show()
+    }
+
+    override fun onClickValide() {
+
     }
 }

@@ -99,12 +99,9 @@ class MainService : Service(){
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                 when(status) {
                     BluetoothGatt.GATT_SUCCESS -> {
-                        Log.d(TAG,"Successfully gatt connected ! \n$newState")
                         when (newState) {
                             BluetoothProfile.STATE_CONNECTED -> {
                                 //TODO save device on preference
-                                stateBluetoothGatt = STATE_CONNECTED
-                                sendBroadcastStateBDO()
                                 deviceBluetoothGatt.discoverServices()
                             }
                             BluetoothProfile.STATE_CONNECTING -> {
@@ -127,27 +124,15 @@ class MainService : Service(){
                 }
             }
 
-            override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-                if (status == BluetoothGatt.GATT_SUCCESS) {
-                    gatt.services.forEach{  gattService ->
-                        gattService.characteristics.forEach { gattCharacteristic ->
-                            if(ServiceDsrcUtils.isKnowing(gattCharacteristic.uuid.toString())){
-                                when(gattCharacteristic.uuid.toString()){
-                                    ServiceDsrcUtils.COMMAND -> {
-                                        requestCharacteristic = gattCharacteristic
-                                    }
-                                    ServiceDsrcUtils.RESPONSE -> {
-                                        responseCharacteristic = gattCharacteristic
-                                    }
-                                    ServiceDsrcUtils.EVENT -> {
-                                        eventCharacteristic = gattCharacteristic
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    deviceBluetoothGatt.enabledGattNotification(gatt,responseCharacteristic!!)
-                }
+            override fun serviceFind(){
+                requestCharacteristic = deviceBluetoothGatt.requestCharacteristic
+                responseCharacteristic = deviceBluetoothGatt.responseCharacteristic
+                eventCharacteristic = deviceBluetoothGatt.eventCharacteristic
+            }
+
+            override fun responseNotificationEnabled() {
+                stateBluetoothGatt = STATE_CONNECTED
+                sendBroadcastStateBDO()
             }
 
             override fun onCharacteristicWrite(
@@ -155,6 +140,7 @@ class MainService : Service(){
                 characteristic: BluetoothGattCharacteristic?,
                 status: Int
             ) {
+                Log.d(TAG,"onCharacteristicWrite")
                 if (characteristic != null) {
                     Log.d(TAG,"Envoi du packet ${DSRCManager.toHexString(characteristic.value)}")
                 }
@@ -165,6 +151,7 @@ class MainService : Service(){
                 characteristic: BluetoothGattCharacteristic?,
                 status: Int
             ) {
+                Log.d(TAG,"onCharacteristicRead")
                 if(characteristic != null){
 
                 }
@@ -174,6 +161,7 @@ class MainService : Service(){
                 gatt: BluetoothGatt?,
                 characteristic: BluetoothGattCharacteristic?
             ) {
+                Log.d(TAG,"onCharacteristicChanged")
                 if(characteristic != null){
                     Log.d(TAG,"Réception du packet ${DSRCManager.toHexString(characteristic.value)}")
                     handleResponse!!.obtainMessage(RECEIVE,characteristic.value).sendToTarget()
@@ -239,6 +227,7 @@ class MainService : Service(){
     }
 
     fun getMultipleAttributes(attributes: List<DSRCAttribut>){
+        Log.d(TAG, "getMultipleAttributes")
         // Store all responses packets
         val responses: MutableList<DSRCAttribut> = mutableListOf()
         // Store all packets to send
@@ -262,7 +251,7 @@ class MainService : Service(){
                     }
                     RECEIVE -> {
                         // Add response
-                        queueRequest[0].first.data = packetResponse
+                        queueRequest[0].first.data = packetResponse?.copyOfRange(12,12 + queueRequest[0].first.length)
                         responses.add(queueRequest[0].first)
                         // Remove first request packet added
                         queueRequest.removeAt(0)
@@ -287,7 +276,6 @@ class MainService : Service(){
     }
 
     private fun sendBroadcastMenuInformations(listAttr: Array<DSRCAttribut>){
-        //Log.d(TAG,"broadCastServiceInformations")
         val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS)
         intent.putExtra(EXTRA_MENU_INFORMATIONS, listAttr)
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)

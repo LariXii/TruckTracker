@@ -6,12 +6,14 @@ import android.util.Log
 import axxes.prototype.trucktracker.manager.DSRCAttributManager
 import axxes.prototype.trucktracker.manager.DSRCManager
 import axxes.prototype.trucktracker.model.*
+import axxes.prototype.trucktracker.utils.ServiceDsrcUtils
 
 class DeviceBluetoothGatt(_context: Context) {
 
     interface ListenerBluetoothGatt{
         fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int)
-        fun onServicesDiscovered(gatt: BluetoothGatt, status: Int)
+        fun serviceFind()
+        fun responseNotificationEnabled()
         fun onCharacteristicWrite(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?, status: Int)
         fun onCharacteristicRead(gatt: BluetoothGatt?,characteristic: BluetoothGattCharacteristic?,status: Int)
         fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?)
@@ -25,6 +27,9 @@ class DeviceBluetoothGatt(_context: Context) {
         DSRCManager()
 
     private var bluetoothGatt: BluetoothGatt? = null
+    var requestCharacteristic: BluetoothGattCharacteristic? = null
+    var responseCharacteristic: BluetoothGattCharacteristic? = null
+    var eventCharacteristic: BluetoothGattCharacteristic? = null
 
     var responseParameters: List<Pair<String, Int>>? = null
 
@@ -83,9 +88,9 @@ class DeviceBluetoothGatt(_context: Context) {
         )
     }
 
-    fun sendPacketToBDO(characteristic: BluetoothGattCharacteristic, packet: ByteArray){
+    fun sendPacketToBDO(characteristic: BluetoothGattCharacteristic, packet: ByteArray): Boolean{
         characteristic.value = packet
-        bluetoothGatt?.writeCharacteristic(characteristic)
+        return bluetoothGatt!!.writeCharacteristic(characteristic)
     }
 
     /*private fun getMenuAttribut(){
@@ -157,7 +162,36 @@ class DeviceBluetoothGatt(_context: Context) {
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             super.onServicesDiscovered(gatt, status)
-            listenerBluetoothGattCallback?.onServicesDiscovered(gatt, status)
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                gatt.services.forEach{  gattService ->
+                    gattService.characteristics.forEach { gattCharacteristic ->
+                        if(ServiceDsrcUtils.isKnowing(gattCharacteristic.uuid.toString())){
+                            when(gattCharacteristic.uuid.toString()){
+                                ServiceDsrcUtils.COMMAND -> {
+                                    requestCharacteristic = gattCharacteristic
+                                }
+                                ServiceDsrcUtils.RESPONSE -> {
+                                    responseCharacteristic = gattCharacteristic
+                                }
+                                ServiceDsrcUtils.EVENT -> {
+                                    eventCharacteristic = gattCharacteristic
+                                }
+                            }
+                        }
+                    }
+                }
+                enabledGattNotification(gatt,responseCharacteristic!!)
+            }
+            listenerBluetoothGattCallback?.serviceFind()
+        }
+
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt?,
+            descriptor: BluetoothGattDescriptor?,
+            status: Int
+        ) {
+            super.onDescriptorWrite(gatt, descriptor, status)
+            listenerBluetoothGattCallback?.responseNotificationEnabled()
         }
 
         override fun onCharacteristicWrite(

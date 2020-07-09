@@ -97,7 +97,7 @@ class DSRCManager {
         return ret
     }
 
-    fun readGetAttributPacket(attribut: DSRCAttribut): List<Pair<String,Int>>{
+    fun getReadAttributeParameters(attribut: DSRCAttribut): List<Pair<String,Int>>{
         val parameters = listOf(
             "Target" to 1,
             "Category" to 1,
@@ -111,7 +111,6 @@ class DSRCManager {
             "AttrLength" to 1,
             "Attribute" to attribut.length + 1
         )
-
         return parameters
     }
 

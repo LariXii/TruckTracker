@@ -46,6 +46,10 @@ class FragmentConnexionBDO: Fragment(), FragmentDevicesScan.ListenerFragmentDevi
 
     }
 
+    fun setDeviceAutoConnexion(addr: String){
+
+    }
+
     interface ListenerFragmentConnexionBDO {
         fun onDeviceSelected(device: BluetoothDevice)
     }
