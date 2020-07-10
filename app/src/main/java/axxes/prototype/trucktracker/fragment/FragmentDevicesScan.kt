@@ -93,7 +93,6 @@ class FragmentDevicesScan: DialogFragment(), AdapterView.OnItemClickListener, Sc
         if (listener == null) {
             throw ClassCastException("$targetFragment must implement ListenerFragmentDevicesScan")
         }
-        Log.d(TAG,"Context de FragmentDevicesScan : $contextActivity")
 
         bluetoothManager = contextActivity.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter

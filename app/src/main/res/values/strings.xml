@@ -26,4 +26,6 @@
     <string name="unknow">Inconnu</string>
     <string name="error_gps_disabled">Veuillez activer votre localisation</string>
     <string name="start_journey">Trajet débuté le : </string>
+
+    <string name="message_fin">Fin du trajet</string>
 </resources>

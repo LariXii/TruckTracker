@@ -18,6 +18,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import axxes.prototype.trucktracker.fragment.FragmentConnexionBDO
+import axxes.prototype.trucktracker.fragment.FragmentEnd
 import axxes.prototype.trucktracker.fragment.FragmentJourney
 import axxes.prototype.trucktracker.fragment.FragmentMenuInformations
 import axxes.prototype.trucktracker.model.DSRCAttribut
@@ -25,7 +26,7 @@ import axxes.prototype.trucktracker.service.MainService
 import axxes.prototype.trucktracker.utils.SharedPreferenceUtils
 import com.google.android.material.snackbar.Snackbar
 
-class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentConnexionBDO, FragmentMenuInformations.ListenerFragmentMenuInformations {
+class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentConnexionBDO, FragmentMenuInformations.ListenerFragmentMenuInformations, FragmentJourney.ListenerFragmentJourney {
 
     private lateinit var bluetoothManager: BluetoothManager
     private lateinit var bluetoothAdapter: BluetoothAdapter
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
     private val fragmentMenuInformations = FragmentMenuInformations()
     private val fragmentConnexionBDO = FragmentConnexionBDO()
     private val fragmentJourney = FragmentJourney()
+    private val fragmentEnd = FragmentEnd()
 
     private lateinit var deviceSelected: BluetoothDevice
 
@@ -51,6 +53,7 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
             mainService = binder.service
             mainServiceBound = true
             //Lors du bind au service change les préférences si celui-ci n'est pas en train de tourner (arrive lors de la relance de l'application via Android Studio)
+            SharedPreferenceUtils.saveLocationTrackingPref(applicationContext,mainService!!.serviceRunning)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -360,5 +363,28 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
 
     override fun onClickValide() {
         replaceFragment(fragmentJourney, false)
+    }
+
+    override fun onClickJourney() {
+        //Récupèration de l'état de l'application
+        val enabled = sharedPreferences.getBoolean(SharedPreferenceUtils.KEY_FOREGROUND_ENABLED, false)
+        //SharedPreferenceUtil.saveLocationTrackingPref(applicationContext,false)
+        //Si la récupération des localisations était en cours on l'arrête
+        if (enabled) {
+            //Lors d'un prochain clic on stop l'update de la localisation
+            mainService?.unsubscribeToLocationUpdates()
+            replaceFragment(fragmentEnd, false)
+        } else {
+            // TODO: Step 1.0, Review Permissions: Checks and requests if needed.
+            // Si la permission de localisation est approuvé, on lance la récupération des localisations
+            if (locationPermissionApproved()) {
+                mainService?.subscribeToLocationUpdates()
+                    ?: Log.d(TAG, "Service Not Bound")
+            }
+            // Sinon on envoi la demande de permission
+            else {
+                requestForegroundPermissions()
+            }
+        }
     }
 }
