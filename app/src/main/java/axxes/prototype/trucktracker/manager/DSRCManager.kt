@@ -5,7 +5,7 @@ import kotlin.math.pow
 
 class DSRCManager {
 
-    fun prepareGNSSPacket(timestamp: Long, longitude: Int, latitude: Int, hdop: Int, numberOfSattelites: Int): ByteArray{
+    fun prepareGNSSPacket(timestamp: Long, longitude: Long, latitude: Long, hdop: Int, numberOfSattelites: Int): ByteArray{
         var ret = ByteArray(0)
 
         ret += toBytes(

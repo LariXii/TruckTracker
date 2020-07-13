@@ -38,6 +38,9 @@ import java.io.File
 import java.io.FileInputStream
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPReply
+import axxes.prototype.trucktracker.R
+import axxes.prototype.trucktracker.manager.DSRCAttributManager
+import java.io.IOException
 
 /**
  * Service tracks location when requested and updates Activity via binding. If Activity is
@@ -82,6 +85,8 @@ class MainService : Service(){
     private lateinit var currentLocation: Localisation
 
     private val countDownTimerNoFix = CountDownTimerNoFix(TIME_TO_WAIT_FOR_NO_FIX,1000)
+    private val countDownTimerSendLocToBDO = CountDownTimerSendLocToBDO(
+        TIME_TO_WAIT_TO_SEND_LOC_TO_BDO,1000)
     private var noFixHappened = 0
     private lateinit var journey: Journey
     private lateinit var user: User
@@ -322,8 +327,8 @@ class MainService : Service(){
                         mapmManager.writeLocation(currentLocation)
 
                         //Send informations to the main activity about service and journey
-                        broadCastServiceInformations()
-                        broadCastJourneyInformations()
+                        sendBroadCastServiceInformations()
+                        sendBroadCastJourneyInformations()
                     }
 
                 } else {
@@ -344,7 +349,7 @@ class MainService : Service(){
                             val states = response.locationSettingsStates
                             serviceInformations.isGpsUsable = states.isGpsUsable
                             serviceInformations.isGpsPresent = states.isGpsPresent
-                            broadCastServiceInformations()
+                            sendBroadCastServiceInformations()
                         }
                         task.addOnFailureListener { e ->
                             //Log.d(TAG,"task.onFailure")
@@ -401,12 +406,25 @@ class MainService : Service(){
     override fun onUnbind(intent: Intent): Boolean {
         Log.d(TAG, "onUnbind()")
         // Ensures onRebind() is called if MainActivity (client) rebinds.
+        if (!configurationChange && SharedPreferenceUtils.getLocationTrackingPref(
+                this
+            )
+        ) {
+            Log.d(TAG, "Start foreground service")
+            val notification = generateNotification(null)
+            startForeground(NOTIFICATION_ID, notification)
+            serviceRunningInForeground = true
+        }
         return true
     }
 
     override fun onDestroy() {
+        unregisterReceiver(contextServiceBroadcastReceiver)
+        unregisterReceiver(broadcastBluetooth)
         Log.d(TAG, "onDestroy()")
-        disconnectToBDO()
+        if(stateBluetoothGatt == STATE_CONNECTED)
+            disconnectToBDO()
+        super.onDestroy()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -439,6 +457,7 @@ class MainService : Service(){
             timerHandler.postDelayed(timerRunnable, (TIME_TO_WAIT_BEFORE_SEND_MAPM).toLong())
             //Start the timer for event no fix and no fix persistent
             countDownTimerNoFix.start()
+            countDownTimerSendLocToBDO.start()
 
             //Création du fichier MAPM
             val name = mapmManager.openFile()
@@ -468,6 +487,7 @@ class MainService : Service(){
                 if (task.isSuccessful) {
                     Log.d(TAG, "Location Callback removed.")
                     countDownTimerNoFix.cancel()
+                    countDownTimerSendLocToBDO.cancel()
                     // Stop journey
                     journey.stopJourney()
                     //stopSelf()
@@ -579,34 +599,100 @@ class MainService : Service(){
                 Runnable{
                     val ftpClient = FTPClient()
 
-                    ftpClient.connect(SERVER_NAME)
-                    Log.d(TAG,"Connection au serveur FTP")
+                    try{
+                        ftpClient.connect(SERVER_NAME)
+                        Log.d(TAG,"Connection au serveur FTP")
 
-                    val reply = ftpClient.replyCode
+                        val reply = ftpClient.replyCode
 
-                    if(!FTPReply.isPositiveCompletion(reply)){
-                        ftpClient.disconnect()
-                        Log.e(TAG,"FTP server refused connection")
-                        // TODO handle this exception
-                        //exitProcess(1)
+                        if(!FTPReply.isPositiveCompletion(reply)){
+                            ftpClient.disconnect()
+                            Log.e(TAG,"FTP server refused connection")
+                            // TODO handle this exception
+                            //exitProcess(1)
+                        }
+
+                        ftpClient.login(LOGIN, PASSWORD)
+                        Log.d(TAG,"Login au serveur FTP")
+
+                        //Transfer File
+                        val ret = ftpClient.storeFile("mapm_files/$fileName", FileInputStream(File(applicationContext.filesDir,fileName)))
+                        if(ret){
+                            Log.d(TAG,"StoreFile")
+                        }
+                        else{
+                            //TODO Handle this event
+                        }
+                    }
+                    catch (ioe: IOException){
+                        //TODO
+                        Log.d(TAG,"Error during connection to file server")
+                    }
+                    finally {
+                        if(ftpClient.isConnected){
+                            try{
+                                ftpClient.logout()
+                                ftpClient.disconnect()
+                            }
+                            catch (ioe: IOException){
+                                //TODO
+                            }
+                        }
                     }
 
-                    ftpClient.login(LOGIN, PASSWORD)
-                    Log.d(TAG,"Login au serveur FTP")
 
-                    //Transfer File
-                    val ret = ftpClient.storeFile("mapm_files/$fileName", FileInputStream(File(applicationContext.filesDir,fileName)))
-                    if(ret){
-                        Log.d(TAG,"StoreFile")
-                    }
-                    else{
-                        //TODO Handle this event
-                    }
-                    ftpClient.logout()
-                    ftpClient.disconnect()
                 }
             ).start()
         }
+    }
+
+    private fun generateNotification(text: String?): Notification {
+        Log.d(TAG, "generateNotification()")
+
+        // Main steps for building a BIG_TEXT_STYLE notification:
+        //      0. Get data
+        //      1. Create Notification Channel for O+
+        //      2. Build the BIG_TEXT_STYLE
+        //      3. Set up Intent / Pending Intent for notification
+        //      4. Build and issue the notification
+
+        // 0. Get data
+        val mainNotificationText = text ?: getString(R.string.notification)
+        val titleText = getString(R.string.app_name)
+
+        // 1. Create Notification Channel for O+ and beyond devices (26+).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+            val notificationChannel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID, titleText, NotificationManager.IMPORTANCE_DEFAULT)
+
+            // Adds NotificationChannel to system. Attempting to create an
+            // existing notification channel with its original values performs
+            // no operation, so it's safe to perform the below sequence.
+            notificationManager.createNotificationChannel(notificationChannel)
+        }
+
+        // 3. Set up main Intent/Pending Intents for notification.
+        val launchActivityIntent = Intent(this, MainActivity::class.java)
+
+        val launchActivityPendingIntent: PendingIntent = PendingIntent.getActivity(this,0,launchActivityIntent,0)
+
+        // 4. Build and issue the notification.
+        // Notification Channel Id is ignored for Android pre O (26).
+        val notificationCompatBuilder =
+            NotificationCompat.Builder(applicationContext,
+                NOTIFICATION_CHANNEL_ID
+            )
+
+        return notificationCompatBuilder
+            .setContentTitle(titleText)
+            .setContentText(mainNotificationText)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setOngoing(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(launchActivityPendingIntent)
+            .build()
     }
 
     private fun sendBroadcastMenuInformations(listAttr: Array<DSRCAttribut>){
@@ -622,18 +708,34 @@ class MainService : Service(){
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
     }
 
-    private fun broadCastServiceInformations(){
-        //Log.d(TAG,"broadCastServiceInformations")
+    private fun sendBroadCastServiceInformations(){
+        Log.d(TAG,"broadCastServiceInformations")
         val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS)
         intent.putExtra(EXTRA_INFORMATIONS, serviceInformations)
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
     }
 
-    private fun broadCastJourneyInformations(){
-        //Log.d(TAG,"broadCastServiceInformations")
+    private fun sendBroadCastJourneyInformations(){
+        Log.d(TAG,"broadCastServiceInformations")
         val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY)
         intent.putExtra(EXTRA_JOURNEY, journey)
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
+    }
+
+    private fun sendLocationToBDO(){
+        val latitude = currentLocation.latitude
+        val longitude = currentLocation.longitude
+        val timeFix: Long = currentLocation.timeFix
+
+        val gnssData = dsrcManager.prepareGNSSPacket(timeFix,longitude,latitude,12,4)
+
+        val attribut = DSRCAttributManager.finAttribut(2,50)
+
+        val packetToSend = dsrcManager.prepareWriteCommandPacket(attribut!!,gnssData,
+            autoFillWithZero = true,
+            temporaryData = true
+        )
+        deviceBluetoothGatt.sendPacketToBDO(requestCharacteristic!!,packetToSend)
     }
 
     // ################################################################################ \\
@@ -677,7 +779,7 @@ class MainService : Service(){
                     val isNetworkEnabled = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
 
                     serviceInformations.isGpsUsable = isGpsEnabled
-                    broadCastServiceInformations()
+                    sendBroadCastServiceInformations()
 
                     if(isGpsEnabled || isNetworkEnabled){
                         //Log.d(TAG,"La localisation est activé !")
@@ -751,6 +853,17 @@ class MainService : Service(){
         }
     }
 
+    inner class CountDownTimerSendLocToBDO(millisInFuture: Long, countDownInterval: Long) : CountDownTimer(millisInFuture, countDownInterval){
+        override fun onFinish() {
+            sendLocationToBDO()
+            countDownTimerSendLocToBDO.start()
+        }
+
+        override fun onTick(millisUntilFinished: Long) {
+
+        }
+    }
+
     companion object {
         // #################### VARIABLES #################### //
         private const val TAG = "MainService"
@@ -767,6 +880,7 @@ class MainService : Service(){
 
         private const val TIME_TO_WAIT_BEFORE_SEND_MAPM = 1 * 60 * 1000
         private const val TIME_TO_WAIT_FOR_NO_FIX: Long = 2 * 60 * 1000
+        private const val TIME_TO_WAIT_TO_SEND_LOC_TO_BDO: Long = 1 * 60 * 1000
 
         // ################################################ //
 

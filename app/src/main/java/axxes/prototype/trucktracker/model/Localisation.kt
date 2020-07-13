@@ -10,11 +10,13 @@ import java.time.format.DateTimeFormatter
 
 class Localisation(private val location: Location?): Parcelable{
     //Temps auquel est arrivé la localisation
+    val timeFix: Long
+
     private val c7: String
     //Latitude
-    private val c8: Long
+    val latitude: Long
     //Longitude
-    private val c9: Long
+    val longitude: Long
     //Vitesse instantané
     private val c10: Float
     //Direction de la localisation
@@ -32,6 +34,8 @@ class Localisation(private val location: Location?): Parcelable{
     private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
 
     init{
+        timeFix = System.currentTimeMillis()
+
         //Calcul de la date réel de la localisation
         val toSecond = 1000000000
         //Temps en nanosecondes du fix
@@ -44,8 +48,8 @@ class Localisation(private val location: Location?): Parcelable{
         c7 = date.format(formatter)
 
         if(location != null){
-            c8 = (location.latitude * 1000000).toLong()
-            c9 = (location.longitude * 1000000).toLong()
+            latitude = (location.latitude * 1000000).toLong()
+            longitude = (location.longitude * 1000000).toLong()
             c10 = location.speed
             c11 = location.bearing
             c12 = location.accuracy/5
@@ -84,8 +88,8 @@ class Localisation(private val location: Location?): Parcelable{
     override fun toString(): String{
         val sep = MyFileUtils.SEP
         return "\"$c7\"$sep" +
-                "$c8$sep" +
-                "$c9$sep" +
+                "$latitude$sep" +
+                "$longitude$sep" +
                 "$c10$sep" +
                 "$c11$sep" +
                 "$c12$sep" +

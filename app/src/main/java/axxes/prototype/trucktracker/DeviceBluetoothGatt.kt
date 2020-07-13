@@ -73,7 +73,7 @@ class DeviceBluetoothGatt(_context: Context) {
         return dsrcManager.prepareReadCommandPacket(attributes, false)
     }
 
-    private fun getPacketSetGNSSAttribut(): ByteArray{
+    /*private fun getPacketSetGNSSAttribut(): ByteArray{
         val latitude = 6043662
         val longitude = 47258182
         val timeStamp: Long = System.currentTimeMillis()
@@ -86,7 +86,7 @@ class DeviceBluetoothGatt(_context: Context) {
             autoFillWithZero = true,
             temporaryData = true
         )
-    }
+    }*/
 
     fun sendPacketToBDO(characteristic: BluetoothGattCharacteristic, packet: ByteArray): Boolean{
         characteristic.value = packet

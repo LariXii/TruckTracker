@@ -7,26 +7,39 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.*
 import android.content.pm.PackageManager
+import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.IBinder
+import android.os.PersistableBundle
 import android.util.Log
+import android.widget.Button
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
-import androidx.core.content.edit
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.ViewModelProvider
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import axxes.prototype.trucktracker.fragment.FragmentConnexionBDO
 import axxes.prototype.trucktracker.fragment.FragmentEnd
 import axxes.prototype.trucktracker.fragment.FragmentJourney
 import axxes.prototype.trucktracker.fragment.FragmentMenuInformations
 import axxes.prototype.trucktracker.model.DSRCAttribut
+import axxes.prototype.trucktracker.model.Journey
+import axxes.prototype.trucktracker.model.ServiceInformations
 import axxes.prototype.trucktracker.service.MainService
 import axxes.prototype.trucktracker.utils.SharedPreferenceUtils
+import axxes.prototype.trucktracker.viewmodel.ViewModelContextState
 import com.google.android.material.snackbar.Snackbar
+import java.time.format.DateTimeFormatter
+import java.util.EnumSet.of
 
-class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentConnexionBDO, FragmentMenuInformations.ListenerFragmentMenuInformations, FragmentJourney.ListenerFragmentJourney {
+class MainActivity : AppCompatActivity(),
+    SharedPreferences.OnSharedPreferenceChangeListener,
+    FragmentConnexionBDO.ListenerFragmentConnexionBDO,
+    FragmentMenuInformations.ListenerFragmentMenuInformations,
+    FragmentJourney.ListenerFragmentJourney,
+    FragmentEnd.ListenerFragmentEnd {
 
     private lateinit var bluetoothManager: BluetoothManager
     private lateinit var bluetoothAdapter: BluetoothAdapter
@@ -37,8 +50,11 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
     private val fragmentConnexionBDO = FragmentConnexionBDO()
     private val fragmentJourney = FragmentJourney()
     private val fragmentEnd = FragmentEnd()
+    private lateinit var currentFragment: Fragment
 
     private lateinit var deviceSelected: BluetoothDevice
+
+    private lateinit var viewModelContextState: ViewModelContextState
 
     private var mainService: MainService? = null
     private var mainServiceBound: Boolean = false
@@ -54,6 +70,8 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
             mainServiceBound = true
             //Lors du bind au service change les préférences si celui-ci n'est pas en train de tourner (arrive lors de la relance de l'application via Android Studio)
             SharedPreferenceUtils.saveLocationTrackingPref(applicationContext,mainService!!.serviceRunning)
+            if(mainService!!.serviceRunning)
+                replaceFragment(fragmentJourney, false)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -67,11 +85,7 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         setContentView(R.layout.activity_main)
 
         // Managers
-        bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        bluetoothAdapter = bluetoothManager.adapter
-        fragmentManager = supportFragmentManager
-
-        sharedPreferences = getSharedPreferences(SharedPreferenceUtils.PREFERENCE_KEY, Context.MODE_PRIVATE)
+        initializeManagers()
 
         mainServiceBroadcastReceiver = ForegroundOnlyBroadcastReceiver()
 
@@ -97,6 +111,42 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
 
         // Receivers
         registerReceiver(broadcastBluetooth, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+        initializeReveivers()
+
+        //Liaison du service de localisation avec l'activité principale
+        val serviceIntent = Intent(this, MainService::class.java)
+        bindService(serviceIntent, mainServiceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (mainServiceBound) {
+            unbindService(mainServiceConnection)
+            mainServiceBound = false
+        }
+        //Enlève le listener associé aux changements de préférences
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
+        //Enlève le listener sur le LocalBroadCast
+        unregisterReceiver(broadcastBluetooth)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(
+            mainServiceBroadcastReceiver
+        )
+    }
+
+    override fun onDestroy() {
+        Log.d(TAG,"onDestroy")
+        super.onDestroy()
+    }
+
+    private fun initializeManagers(){
+        bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothAdapter = bluetoothManager.adapter
+        fragmentManager = supportFragmentManager
+
+        sharedPreferences = getSharedPreferences(SharedPreferenceUtils.PREFERENCE_KEY, Context.MODE_PRIVATE)
+    }
+
+    private fun initializeReveivers(){
         LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
             IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_BDO_STATE)
         )
@@ -106,17 +156,8 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
             IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY)
         )
-
-        //Liaison du service de localisation avec l'activité principale
-        val serviceIntent = Intent(this, MainService::class.java)
-        bindService(serviceIntent, mainServiceConnection, Context.BIND_AUTO_CREATE)
-    }
-
-    override fun onStop() {
-        super.onStop()
-        unregisterReceiver(broadcastBluetooth)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(
-            mainServiceBroadcastReceiver
+        LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
+            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS)
         )
     }
 
@@ -186,6 +227,10 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         val builderDialog = AlertDialog.Builder(this)
         val inflater = this.layoutInflater
         val dialogView = inflater.inflate(R.layout.dialog_progressbar, null)
+        val btnClose = dialogView.findViewById<Button>(R.id.dp_btn_close)
+        btnClose.setOnClickListener {
+
+        }
         builderDialog.setTitle(title)
             .setView(dialogView)
             .setCancelable(false)
@@ -215,6 +260,7 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         val transaction = fragmentManager.beginTransaction()
         transaction.add(R.id.container, fragment)
         transaction.commit()
+        currentFragment = fragment
     }
 
     private fun replaceFragment(fragment: Fragment, addToBackStack: Boolean){
@@ -223,6 +269,7 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
         if(addToBackStack)
             transaction.addToBackStack(null)
         transaction.commit()
+        currentFragment = fragment
     }
 
     private val broadcastBluetooth: BroadcastReceiver = object : BroadcastReceiver() {
@@ -248,41 +295,36 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
     /**
      * Receiver for location broadcasts from [JourneyLocationService].
      */
+
     private inner class ForegroundOnlyBroadcastReceiver : BroadcastReceiver() {
 
         override fun onReceive(context: Context, intent: Intent) {
             when(intent.action){
-                /*// LOCATION
-                JourneyLocationService.ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS -> {
+                // LOCATION
+                MainService.ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS -> {
                     //Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS")
                     val serviceInfos = intent.getParcelableExtra<ServiceInformations>(
-                        JourneyLocationService.EXTRA_INFORMATIONS
+                        MainService.EXTRA_INFORMATIONS
                     )
 
                     if (serviceInfos != null) {
-                        serviceInformationsToScreen(serviceInfos)
+                        fragmentJourney.serviceInformationsToScreen(serviceInfos)
                     }
                 }
                 // JOURNEY
-                JourneyLocationService.ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY -> {
+                MainService.ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY -> {
                     //Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS")
                     val journeyInfo = intent.getParcelableExtra<Journey>(
-                        JourneyLocationService.EXTRA_JOURNEY
+                        MainService.EXTRA_JOURNEY
                     )
 
                     if (journeyInfo != null) {
                         // TODO Display journey informations
-                        journeyInformationsToScreen(journeyInfo)
+                        fragmentJourney.journeyInformationsToScreen(journeyInfo)
                     }
                 }
 
-                /*JourneyLocationService.ACTION_SERVICE_LOCATION_BROADCAST_ACCELEROMETER -> {
-                    Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_ACCELEROMETER")
-                    val accelerometerInfo = intent.getFloatExtra(JourneyLocationService.EXTRA_ACCELEROMETER, 0f)
-
-                    accelerometerInformationsToScreen(accelerometerInfo)
-                }*/
-
+                /*
                 // CHECK_REQUEST
                 JourneyLocationService.ACTION_SERVICE_LOCATION_BROADCAST_CHECK_REQUEST -> {
                     //Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_CHECK_REQUEST")
@@ -386,5 +428,15 @@ class MainActivity : AppCompatActivity(), FragmentConnexionBDO.ListenerFragmentC
                 requestForegroundPermissions()
             }
         }
+    }
+
+    override fun onClickOk(){
+        mainService?.disconnectToBDO()
+        stopService(Intent(applicationContext, MainService::class.java))
+        finish()
+    }
+
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
+
     }
 }

@@ -7,7 +7,6 @@
     android:orientation="vertical">
 
     <TextView
-        android:id="@+id/textView"
         android:layout_width="181dp"
         android:layout_height="38dp"
         android:layout_gravity="center"
@@ -18,7 +17,7 @@
         android:textSize="18sp" />
 
     <TextView
-        android:id="@+id/textView_end"
+        android:id="@+id/fe_tv_recap"
         android:layout_width="242dp"
         android:layout_height="275dp"
         android:layout_gravity="center"
@@ -27,7 +26,7 @@
         android:padding="10dp" />
 
     <Button
-        android:id="@+id/btn_end"
+        android:id="@+id/fe_btn_ok"
         android:layout_width="189dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"

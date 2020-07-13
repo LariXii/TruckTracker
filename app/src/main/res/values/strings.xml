@@ -28,4 +28,6 @@
     <string name="start_journey">Trajet débuté le : </string>
 
     <string name="message_fin">Fin du trajet</string>
+
+    <string name="notification">Service de localisation est cours…</string>
 </resources>
