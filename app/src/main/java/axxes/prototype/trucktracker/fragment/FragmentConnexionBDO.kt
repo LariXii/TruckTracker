@@ -10,7 +10,10 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import axxes.prototype.trucktracker.R
+import axxes.prototype.trucktracker.viewmodel.ViewModelContextState
 import kotlinx.android.synthetic.main.fragment_connection_bdo.*
 
 class FragmentConnexionBDO: Fragment(), FragmentDevicesScan.ListenerFragmentDevicesScan {
@@ -20,8 +23,9 @@ class FragmentConnexionBDO: Fragment(), FragmentDevicesScan.ListenerFragmentDevi
 
     private lateinit var btnConnexion: Button
     private lateinit var btnScan: Button
-
     private lateinit var nameDevice: TextView
+
+    private lateinit var contextState: ViewModelContextState
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -58,11 +62,15 @@ class FragmentConnexionBDO: Fragment(), FragmentDevicesScan.ListenerFragmentDevi
         if (listener == null) {
             throw ClassCastException("$context must implement ListenerFragmentConnexionBDO")
         }
-
     }
 
     fun setDeviceAutoConnexion(deviceAC: BluetoothDevice){
         deviceAutoConnexion = deviceAC
+    }
+
+    fun updateConnexion(state: Boolean){
+        btnConnexion.isEnabled = state
+        btnScan.isEnabled = state
     }
 
     interface ListenerFragmentConnexionBDO {

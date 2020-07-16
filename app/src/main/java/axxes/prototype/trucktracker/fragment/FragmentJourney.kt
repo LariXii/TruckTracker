@@ -1,19 +1,30 @@
 package axxes.prototype.trucktracker.fragment
 
-import android.content.Context
+import android.content.*
 import android.graphics.Color
 import android.os.Bundle
+import android.os.SystemClock
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.Chronometer
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import axxes.prototype.trucktracker.MainActivity
 import axxes.prototype.trucktracker.R
+import axxes.prototype.trucktracker.model.DSRCAttribut
 import axxes.prototype.trucktracker.model.Journey
 import axxes.prototype.trucktracker.model.ServiceInformations
+import axxes.prototype.trucktracker.service.MainService
+import com.google.android.gms.common.api.ResolvableApiException
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
 import kotlinx.android.synthetic.main.fragment_journey.*
 import org.w3c.dom.Text
 import java.time.format.DateTimeFormatter
@@ -34,6 +45,9 @@ class FragmentJourney: Fragment() {
     private lateinit var tvSendFile: TextView
     private lateinit var tvNumberLoc: TextView
     private lateinit var tvStartJourney: TextView
+    private lateinit var tvChronometer: Chronometer
+
+    private val serviceReceiver: ServiceReceiver = ServiceReceiver()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -51,6 +65,9 @@ class FragmentJourney: Fragment() {
         tvSendFile = view.findViewById(R.id.fj_tv_send_file)
         tvNumberLoc = view.findViewById(R.id.fj_tv_number_loc)
         tvStartJourney = view.findViewById(R.id.fj_tv_start_journey)
+        tvChronometer = view.findViewById(R.id.fj_chronometer)
+
+        requestLocationSettingsEnable()
         return view
     }
 
@@ -60,18 +77,66 @@ class FragmentJourney: Fragment() {
         if (listener == null) {
             throw ClassCastException("$targetFragment must implement ListenerFragmentJourney")
         }
+        LocalBroadcastManager.getInstance(context).registerReceiver(serviceReceiver,
+            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY)
+        )
+        LocalBroadcastManager.getInstance(context).registerReceiver(serviceReceiver,
+            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS)
+        )
+    }
+
+    override fun onDetach() {
+        LocalBroadcastManager.getInstance(activity!!.applicationContext).unregisterReceiver(serviceReceiver)
+        super.onDetach()
+    }
+
+    private fun requestLocationSettingsEnable(){
+        val locationRequest = LocationRequest.create()
+        locationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        val builderSettingsLocation: LocationSettingsRequest.Builder  = LocationSettingsRequest.Builder()
+            .addLocationRequest(locationRequest)
+
+        val task = LocationServices.getSettingsClient(activity!!.applicationContext).checkLocationSettings(builderSettingsLocation.build())
+
+        task.addOnSuccessListener { response ->
+            btnJourney.isEnabled = true
+            gpsUsable()
+        }
+        task.addOnFailureListener { e ->
+            btnJourney.isEnabled = false
+            gpsUnusable()
+        }
+    }
+
+    fun updateChronometer(state: Boolean, startTime: Long) {
+        if(state) {
+            tvChronometer.base = startTime
+            tvChronometer.start()
+        }
+        else{
+            tvChronometer.base = SystemClock.elapsedRealtime()
+            tvChronometer.stop()
+        }
+    }
+
+    private fun gpsUnusable(){
+        tvGpsUnable.text = "Désactivé"
+        tvGpsUnable.setTextColor(Color.RED )
+        tvMsgErr.visibility = View.VISIBLE
+    }
+    private fun gpsUsable(){
+        tvGpsUnable.text = "Activé"
+        tvGpsUnable.setTextColor(Color.GREEN)
+        tvMsgErr.visibility = View.INVISIBLE
     }
 
     fun serviceInformationsToScreen(serviceInfos: ServiceInformations) {
         if(serviceInfos.isGpsUsable){
-            tvGpsUnable.text = "Activé"
-            tvGpsUnable.setTextColor(Color.GREEN)
-            tvMsgErr.visibility = View.INVISIBLE
+            btnJourney.isEnabled = true
+            gpsUsable()
         }
         else{
-            tvGpsUnable.text = "Désactivé"
-            tvGpsUnable.setTextColor(Color.RED )
-            tvMsgErr.visibility = View.VISIBLE
+            gpsUnusable()
         }
 
         if(serviceInfos.isSending)
@@ -88,5 +153,33 @@ class FragmentJourney: Fragment() {
         tvNumberLoc.text = journey.numberOfLocalisation().toString()
         val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
         tvStartJourney.text = journey.getStartDateTime().format(dateFormatter)
+    }
+
+    private inner class ServiceReceiver : BroadcastReceiver() {
+
+        override fun onReceive(context: Context, intent: Intent) {
+            when(intent.action){
+                // LOCATION
+                MainService.ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS -> {
+                    val serviceInfos = intent.getParcelableExtra<ServiceInformations>(
+                        MainService.EXTRA_INFORMATIONS
+                    )
+
+                    if (serviceInfos != null) {
+                        serviceInformationsToScreen(serviceInfos)
+                    }
+                }
+                // JOURNEY
+                MainService.ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY -> {
+                    val journeyInfo = intent.getParcelableExtra<Journey>(
+                        MainService.EXTRA_JOURNEY
+                    )
+
+                    if (journeyInfo != null) {
+                        journeyInformationsToScreen(journeyInfo)
+                    }
+                }
+            }
+        }
     }
 }

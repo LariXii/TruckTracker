@@ -19,15 +19,24 @@ class ViewModelContextState: ViewModel() {
     val isNetworkEnabled: LiveData<Boolean>
         get() = _isNetworkEnabled
 
+    private val _isPermissionLocationEnabled = MutableLiveData<Boolean>()
+    val isPermissionLocationEnabled: LiveData<Boolean>
+        get() = _isPermissionLocationEnabled
+
     init{
         _isGpsEnabled.value = false
         _isBluetoothEnabled.value = false
         _isNetworkEnabled.value = false
+        _isPermissionLocationEnabled.value = false
     }
 
     fun updateContextState(states: ContextState){
         _isGpsEnabled.value = states.isGpsEnabled
         _isBluetoothEnabled.value = states.isBluetoothEnabled
         _isNetworkEnabled.value = states.isNetworkEnabled
+    }
+
+    fun updatePermissionLocation(state: Boolean){
+        _isPermissionLocationEnabled.value = state
     }
 }

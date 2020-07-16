@@ -2,16 +2,16 @@ package axxes.prototype.trucktracker
 
 import android.Manifest
 import android.app.Activity
+import android.app.PendingIntent
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.*
 import android.content.pm.PackageManager
-import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.IBinder
-import android.os.PersistableBundle
+import android.provider.Settings
 import android.util.Log
 import android.widget.Button
 import androidx.appcompat.app.AlertDialog
@@ -25,14 +25,12 @@ import axxes.prototype.trucktracker.fragment.FragmentEnd
 import axxes.prototype.trucktracker.fragment.FragmentJourney
 import axxes.prototype.trucktracker.fragment.FragmentMenuInformations
 import axxes.prototype.trucktracker.model.DSRCAttribut
-import axxes.prototype.trucktracker.model.Journey
-import axxes.prototype.trucktracker.model.ServiceInformations
 import axxes.prototype.trucktracker.service.MainService
 import axxes.prototype.trucktracker.utils.SharedPreferenceUtils
+import axxes.prototype.trucktracker.viewmodel.ContextStateViewModelFactory
 import axxes.prototype.trucktracker.viewmodel.ViewModelContextState
+import com.google.android.gms.location.LocationSettingsStates
 import com.google.android.material.snackbar.Snackbar
-import java.time.format.DateTimeFormatter
-import java.util.EnumSet.of
 
 class MainActivity : AppCompatActivity(),
     SharedPreferences.OnSharedPreferenceChangeListener,
@@ -86,24 +84,30 @@ class MainActivity : AppCompatActivity(),
 
         // Managers
         initializeManagers()
+        viewModelContextState = ViewModelProvider(this, ContextStateViewModelFactory()).get(ViewModelContextState::class.java)
 
         mainServiceBroadcastReceiver = ForegroundOnlyBroadcastReceiver()
 
+        gotoFragment(fragmentConnexionBDO)
+
         // Permissions
         if(!locationPermissionApproved()){
+            viewModelContextState.updatePermissionLocation(false)
             requestForegroundPermissions()
+        }
+        else{
+            viewModelContextState.updatePermissionLocation(true)
         }
         if(!bluetoothAdapter.isEnabled){
             askToEnabledBT()
         }
-
-        gotoFragment(fragmentConnexionBDO)
 
         if(sharedPreferences.contains(SharedPreferenceUtils.KEY_DEVICE_ADDRESS)
             && sharedPreferences.contains(SharedPreferenceUtils.KEY_DEVICE_NAME)){
             val deviceAC = bluetoothAdapter.getRemoteDevice(sharedPreferences.getString(SharedPreferenceUtils.KEY_DEVICE_ADDRESS, null))
             fragmentConnexionBDO.setDeviceAutoConnexion(deviceAC)
         }
+
     }
 
     override fun onStart() {
@@ -121,6 +125,8 @@ class MainActivity : AppCompatActivity(),
     override fun onStop() {
         super.onStop()
         if (mainServiceBound) {
+            if(!mainService!!.serviceRunning)
+                mainService!!.disconnectToBDO()
             unbindService(mainServiceConnection)
             mainServiceBound = false
         }
@@ -131,11 +137,6 @@ class MainActivity : AppCompatActivity(),
         LocalBroadcastManager.getInstance(this).unregisterReceiver(
             mainServiceBroadcastReceiver
         )
-    }
-
-    override fun onDestroy() {
-        Log.d(TAG,"onDestroy")
-        super.onDestroy()
     }
 
     private fun initializeManagers(){
@@ -152,12 +153,6 @@ class MainActivity : AppCompatActivity(),
         )
         LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
             IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS)
-        )
-        LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
-            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY)
-        )
-        LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
-            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS)
         )
     }
 
@@ -193,7 +188,7 @@ class MainActivity : AppCompatActivity(),
                     ActivityCompat.requestPermissions(
                         this@MainActivity,
                         arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                        1
+                        MainService.PERMISSION_LOCATION_REQUEST_CODE
                     )
                 }
                 .show()
@@ -202,7 +197,7 @@ class MainActivity : AppCompatActivity(),
             ActivityCompat.requestPermissions(
                 this@MainActivity,
                 arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                1
+                MainService.PERMISSION_LOCATION_REQUEST_CODE
             )
         }
     }
@@ -217,6 +212,39 @@ class MainActivity : AppCompatActivity(),
                     }
                     Activity.RESULT_CANCELED -> {
 
+                    }
+                }
+            }
+            MainService.CHECK_LOCATION_REQUEST_CODE -> {
+                val states: LocationSettingsStates = LocationSettingsStates.fromIntent(data)
+                mainService?.setServiceInformationsStates(states.isGpsPresent,states.isGpsUsable)
+                when(resultCode){
+                    Activity.RESULT_OK -> {
+
+                    }
+                    Activity.RESULT_CANCELED -> {
+                        Snackbar.make(
+                            findViewById(R.id.activity_main),
+                            R.string.permission_denied_explanation,
+                            Snackbar.LENGTH_LONG
+                        )
+                            .setAction(R.string.settings) {
+                                // Build intent that displays the App settings screen.
+                                val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                startActivity(intent)
+                            }
+                            .show()
+                    }
+                }
+            }
+            MainService.PERMISSION_LOCATION_REQUEST_CODE -> {
+                when(resultCode){
+                    Activity.RESULT_OK -> {
+                        viewModelContextState.updatePermissionLocation(true)
+                    }
+                    Activity.RESULT_CANCELED -> {
+                        finish()
                     }
                 }
             }
@@ -300,43 +328,19 @@ class MainActivity : AppCompatActivity(),
 
         override fun onReceive(context: Context, intent: Intent) {
             when(intent.action){
-                // LOCATION
-                MainService.ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS -> {
-                    //Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS")
-                    val serviceInfos = intent.getParcelableExtra<ServiceInformations>(
-                        MainService.EXTRA_INFORMATIONS
-                    )
 
-                    if (serviceInfos != null) {
-                        fragmentJourney.serviceInformationsToScreen(serviceInfos)
-                    }
-                }
-                // JOURNEY
-                MainService.ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY -> {
-                    //Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_INFORMATIONS")
-                    val journeyInfo = intent.getParcelableExtra<Journey>(
-                        MainService.EXTRA_JOURNEY
-                    )
-
-                    if (journeyInfo != null) {
-                        // TODO Display journey informations
-                        fragmentJourney.journeyInformationsToScreen(journeyInfo)
-                    }
-                }
-
-                /*
                 // CHECK_REQUEST
-                JourneyLocationService.ACTION_SERVICE_LOCATION_BROADCAST_CHECK_REQUEST -> {
+                MainService.ACTION_SERVICE_LOCATION_BROADCAST_CHECK_REQUEST -> {
                     //Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_CHECK_REQUEST")
                     val pendingIntent = intent.getParcelableExtra<PendingIntent>(
-                        JourneyLocationService.EXTRA_CHECK_REQUEST
+                        MainService.EXTRA_CHECK_REQUEST
                     )
 
                     if(pendingIntent != null) {
                         try {
                             startIntentSenderForResult(
                                 pendingIntent.intentSender,
-                                REQUEST_CHECK_SETTINGS,
+                                MainService.CHECK_LOCATION_REQUEST_CODE,
                                 null,
                                 0,
                                 0,
@@ -346,7 +350,7 @@ class MainActivity : AppCompatActivity(),
                             // Ignore the error
                         }
                     }
-                }*/
+                }
                 MainService.ACTION_SERVICE_LOCATION_BROADCAST_BDO_STATE -> {
                     val state = intent.getIntExtra(MainService.EXTRA_STATE_BDO, -1)
                     Log.d(TAG,"State du BDO : $state")
@@ -363,9 +367,13 @@ class MainActivity : AppCompatActivity(),
                         }
                         MainService.STATE_DISCONNECTED -> {
                             //TODO Dialog disconnected
+                            dialogConnection!!.hide()
+                            dialogConnection = null
                         }
                         MainService.STATE_DISCONNECTING -> {
                             //TODO Dialog disconnecting
+                            dialogConnection = createConnectionDialog("Déconnexion au BDO...")
+                            dialogConnection!!.show()
                         }
                         MainService.STATE_FAILURE -> {
                             //TODO Dialog disconnecting
@@ -415,6 +423,7 @@ class MainActivity : AppCompatActivity(),
         if (enabled) {
             //Lors d'un prochain clic on stop l'update de la localisation
             mainService?.unsubscribeToLocationUpdates()
+            fragmentJourney.updateChronometer(false, 0)
             replaceFragment(fragmentEnd, false)
         } else {
             // TODO: Step 1.0, Review Permissions: Checks and requests if needed.
@@ -422,6 +431,8 @@ class MainActivity : AppCompatActivity(),
             if (locationPermissionApproved()) {
                 mainService?.subscribeToLocationUpdates()
                     ?: Log.d(TAG, "Service Not Bound")
+                fragmentJourney.updateChronometer(true, mainService?.getJourney()!!.startTime)
+                fragmentJourney.journeyInformationsToScreen(mainService?.getJourney()!!)
             }
             // Sinon on envoi la demande de permission
             else {
@@ -432,6 +443,7 @@ class MainActivity : AppCompatActivity(),
 
     override fun onClickOk(){
         mainService?.disconnectToBDO()
+
         stopService(Intent(applicationContext, MainService::class.java))
         finish()
     }

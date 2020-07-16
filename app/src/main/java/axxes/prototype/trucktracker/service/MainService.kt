@@ -21,6 +21,7 @@ import android.bluetooth.*
 import android.content.*
 import android.content.res.Configuration
 import android.location.LocationManager
+import android.net.ConnectivityManager
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -106,6 +107,7 @@ class MainService : Service(){
     private lateinit var mapmManager: MAPMManager
     private lateinit var serviceInformations: ServiceInformations
     private var notificationBuilder: NotificationCompat.Builder? = null
+    private var sendFirst = false
     // ########################################################## \\
 
     // ################### BLUETOOTH HANDLER #################### \\
@@ -192,6 +194,7 @@ class MainService : Service(){
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION))
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(Intent.ACTION_BATTERY_LOW))
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(Intent.ACTION_BATTERY_OKAY))
+        registerReceiver(contextServiceBroadcastReceiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
     }
 
     private fun initializeBluetoothGattCallBack(){
@@ -317,6 +320,11 @@ class MainService : Service(){
 
                     for(loc in locationResult.locations){
                         currentLocation = Localisation(loc)
+                        if(!sendFirst){
+                            sendFirst = true
+                            sendLocationToBDO()
+                            countDownTimerSendLocToBDO.start()
+                        }
                         journey.addLocation(currentLocation)
 
                         // Write event if location isFromMockProvider = true
@@ -421,15 +429,20 @@ class MainService : Service(){
     override fun onDestroy() {
         unregisterReceiver(contextServiceBroadcastReceiver)
         unregisterReceiver(broadcastBluetooth)
-        Log.d(TAG, "onDestroy()")
-        if(stateBluetoothGatt == STATE_CONNECTED)
-            disconnectToBDO()
         super.onDestroy()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         configurationChange = true
+    }
+
+    fun getJourney() = journey
+
+    fun setServiceInformationsStates(isGpsPresent: Boolean, isGpsUsable: Boolean){
+        serviceInformations.isGpsPresent = isGpsPresent
+        serviceInformations.isGpsUsable = isGpsUsable
+        sendBroadCastServiceInformations()
     }
 
     fun subscribeToLocationUpdates() {
@@ -457,7 +470,6 @@ class MainService : Service(){
             timerHandler.postDelayed(timerRunnable, (TIME_TO_WAIT_BEFORE_SEND_MAPM).toLong())
             //Start the timer for event no fix and no fix persistent
             countDownTimerNoFix.start()
-            countDownTimerSendLocToBDO.start()
 
             //Création du fichier MAPM
             val name = mapmManager.openFile()
@@ -773,7 +785,7 @@ class MainService : Service(){
             when(intent.action){
                 //Mode changed
                 LocationManager.MODE_CHANGED_ACTION -> {
-                    //Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_MODE_CHANGED")
+                    Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_MODE_CHANGED")
                     val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
                     val isGpsEnabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER)
                     val isNetworkEnabled = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
@@ -792,7 +804,7 @@ class MainService : Service(){
                 }
                 //Mode changed
                 LocationManager.PROVIDERS_CHANGED_ACTION -> {
-                    //Log.d(TAG,"PROVIDERS_CHANGED_ACTION")
+                    Log.d(TAG,"PROVIDERS_CHANGED_ACTION")
                     val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
                     val isGpsEnabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER)
                     val isNetworkEnabled = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
@@ -921,6 +933,10 @@ class MainService : Service(){
 
         // #################### PERMISSIONS CODES #################### //
         internal const val PERMISSION_BLUETOOTH_REQUEST_CODE = 100
+
+        internal const val PERMISSION_LOCATION_REQUEST_CODE = 101
+
+        internal const val CHECK_LOCATION_REQUEST_CODE = 102
 
         // ################################################ //
 
