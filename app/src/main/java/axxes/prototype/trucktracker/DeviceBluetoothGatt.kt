@@ -47,8 +47,8 @@ class DeviceBluetoothGatt(_context: Context) {
         if (bluetoothGatt == null) {
             return
         }
+        listenerBluetoothGattCallback?.onConnectionStateChange(bluetoothGatt!!, BluetoothGatt.STATE_CONNECTED, BluetoothGatt.STATE_DISCONNECTED)
         bluetoothGatt?.disconnect()
-        listenerBluetoothGattCallback?.onConnectionStateChange(bluetoothGatt!!, BluetoothGatt.STATE_CONNECTED, BluetoothGatt.STATE_DISCONNECTING)
     }
 
     fun closeBLE(){

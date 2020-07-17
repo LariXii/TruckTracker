@@ -5,13 +5,6 @@
     android:layout_height="match_parent"
     android:layout_gravity="center">
 
-    <Button
-        android:id="@+id/dp_btn_close"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:background="@drawable/ic_action_close"
-        android:layout_alignParentEnd="true"/>
-
     <ProgressBar
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

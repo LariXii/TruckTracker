@@ -13,7 +13,6 @@ import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
-import android.widget.Button
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
@@ -58,6 +57,7 @@ class MainActivity : AppCompatActivity(),
     private var mainService: MainService? = null
     private var mainServiceBound: Boolean = false
     private lateinit var mainServiceBroadcastReceiver: ForegroundOnlyBroadcastReceiver
+    private var stateDevice: Int = MainService.STATE_DISCONNECTED
 
     private var dialogConnection: AlertDialog? = null
     // Monitors connection to the while-in-use service.
@@ -255,17 +255,18 @@ class MainActivity : AppCompatActivity(),
         }
     }
 
-    private fun createConnectionDialog(title: String): AlertDialog{
+    private fun createLoadingDialog(title: String, cancelable: Boolean): AlertDialog{
         val builderDialog = AlertDialog.Builder(this)
         val inflater = this.layoutInflater
         val dialogView = inflater.inflate(R.layout.dialog_progressbar, null)
-        val btnClose = dialogView.findViewById<Button>(R.id.dp_btn_close)
-        btnClose.setOnClickListener {
-
-        }
         builderDialog.setTitle(title)
             .setView(dialogView)
             .setCancelable(false)
+        if(cancelable)
+            builderDialog.setNegativeButton("Cancel", DialogInterface.OnClickListener { dialog, which ->
+                dialog.dismiss()
+                onLoadingDialogCancel()
+            })
         return builderDialog.create()
     }
     private fun createErrorDialog(title: String): AlertDialog{
@@ -285,6 +286,15 @@ class MainActivity : AppCompatActivity(),
             SharedPreferenceUtils.saveStringPreference(this,SharedPreferenceUtils.KEY_DEVICE_NAME, deviceSelected.name)
             SharedPreferenceUtils.saveStringPreference(this,SharedPreferenceUtils.KEY_DEVICE_ADDRESS, deviceSelected.address)
             mainService?.connectToBDO(deviceSelected)
+        }
+    }
+
+    private fun onLoadingDialogCancel(){
+        if(stateDevice == MainService.STATE_CONNECTING){
+            mainService?.disconnectToBDO()
+            dialogConnection?.dismiss()
+            dialogConnection = null
+            fragmentConnexionBDO.updateConnexion(true)
         }
     }
 
@@ -360,20 +370,19 @@ class MainActivity : AppCompatActivity(),
                     Log.d(TAG,"State du BDO : $state")
                     when(state){
                         MainService.STATE_CONNECTED -> {
+                            stateDevice = state
                             replaceFragment(fragmentMenuInformations, true)
                             dialogConnection!!.dismiss()
                             dialogConnection = null
                         }
                         MainService.STATE_CONNECTING -> {
                             //TODO Dialog connecting
-                            dialogConnection = createConnectionDialog("Connexion au BDO...")
+                            stateDevice = state
+                            dialogConnection = createLoadingDialog("Connexion au BDO...", true)
                             dialogConnection!!.show()
                         }
                         MainService.STATE_DISCONNECTED -> {
-                            //TODO Dialog disconnected
-                        }
-                        MainService.STATE_DISCONNECTING -> {
-                            //TODO Dialog disconnecting
+                            stateDevice = state
                         }
                         MainService.STATE_FAILURE -> {
                             //TODO Dialog disconnecting
@@ -415,7 +424,7 @@ class MainActivity : AppCompatActivity(),
 
     override fun onGetAttributesMenu(listAttribut: MutableList<DSRCAttribut>) {
         mainService?.getMultipleAttributes(listAttribut)
-        dialogConnection = createConnectionDialog("Chargement des données...")
+        dialogConnection = createLoadingDialog("Chargement des données...", false)
         dialogConnection!!.show()
     }
 
@@ -425,7 +434,7 @@ class MainActivity : AppCompatActivity(),
 
     override fun onClickSave(listAttribut: List<DSRCAttribut>) {
         mainService?.setMultipleAttributes(listAttribut)
-        dialogConnection = createConnectionDialog("Sauvegarde des données...")
+        dialogConnection = createLoadingDialog("Sauvegarde des données...", false)
         dialogConnection!!.show()
     }
 

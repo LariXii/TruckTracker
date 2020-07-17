@@ -956,7 +956,7 @@ class MainService : Service(){
 
         private const val TIME_TO_WAIT_BEFORE_SEND_MAPM = 5 * 60 * 1000
         private const val TIME_TO_WAIT_FOR_NO_FIX: Long = 2 * 60 * 1000
-        private const val TIME_TO_WAIT_TO_SEND_LOC_TO_BDO: Long = 1 * 60 * 1000
+        private const val TIME_TO_WAIT_TO_SEND_LOC_TO_BDO: Long = 55 * 1000
 
         // ################################################ //
 

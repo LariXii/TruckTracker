@@ -89,7 +89,8 @@ class DSRCManager {
         ret += attribut.attrId.toByte()
 
         // Attribut length
-        ret += attribut.length.toByte()
+        val attrLength = attribut.length + 1 // Size of container type
+        ret += attrLength.toByte()
 
         // Container type
         ret += attribut.containerType.toByte()

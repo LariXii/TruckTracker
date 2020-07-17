@@ -3,9 +3,7 @@ package axxes.prototype.trucktracker.model
 import android.os.Parcel
 import android.os.Parcelable
 
-class DSRCAttribut(val attrName: String, val attrId: Int, val attrEID: Int, val containerType: Int, _length: Int, val cacheable: Boolean = false, var data: ByteArray? = null): Parcelable {
-    // Length of container type
-    val length = _length + 1
+class DSRCAttribut(val attrName: String, val attrId: Int, val attrEID: Int, val containerType: Int, val length: Int, val cacheable: Boolean = false, var data: ByteArray? = null): Parcelable {
 
     constructor(parcel: Parcel) : this(
         parcel.readString()!!,
