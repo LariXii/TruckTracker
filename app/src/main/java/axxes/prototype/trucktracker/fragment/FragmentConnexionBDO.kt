@@ -37,6 +37,7 @@ class FragmentConnexionBDO: Fragment(), FragmentDevicesScan.ListenerFragmentDevi
         btnConnexion = view.findViewById(R.id.fcb_btn_connexion_auto)
         btnConnexion.isEnabled = false
         btnConnexion.setOnClickListener {
+            btnConnexion.isEnabled = false
             onDeviceSelected(deviceAutoConnexion!!)
         }
 

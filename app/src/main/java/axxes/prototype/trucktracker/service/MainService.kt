@@ -181,11 +181,11 @@ class MainService : Service(){
 
     private fun initializeManagers(){
         dsrcManager = DSRCManager()
-        eventManager = EventManager(applicationContext, 399367311, 3, 10747906)
+        eventManager = EventManager(applicationContext, 399367311, 42, 10747906)
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         serviceInformations = ServiceInformations()
-        mapmManager = MAPMManager(this,399367311, 3, 10747906,2,2,4)
+        mapmManager = MAPMManager(this,399367311, 42, 10747906,2,2,4)
     }
 
     private fun initializeReceiver(){
@@ -201,24 +201,29 @@ class MainService : Service(){
         deviceBluetoothGatt.listenerBluetoothGattCallback = object :
             DeviceBluetoothGatt.ListenerBluetoothGatt {
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                Log.d(TAG,"ConnectionState change : $status      $newState")
                 when(status) {
                     BluetoothGatt.GATT_SUCCESS -> {
                         when (newState) {
                             BluetoothProfile.STATE_CONNECTED -> {
                                 //TODO save device on preference
                                 deviceBluetoothGatt.discoverServices()
+                                Log.d(TAG,"State du BDO STATE_CONNECTED")
                             }
                             BluetoothProfile.STATE_CONNECTING -> {
                                 stateBluetoothGatt = STATE_CONNECTING
                                 sendBroadcastStateBDO()
+                                Log.d(TAG,"State du BDO STATE_CONNECTING")
                             }
                             BluetoothProfile.STATE_DISCONNECTED -> {
                                 stateBluetoothGatt = STATE_DISCONNECTED
                                 sendBroadcastStateBDO()
+                                Log.d(TAG,"State du BDO STATE_DISCONNECTED")
                             }
                             BluetoothProfile.STATE_DISCONNECTING -> {
                                 stateBluetoothGatt = STATE_DISCONNECTING
                                 sendBroadcastStateBDO()
+                                Log.d(TAG,"State du BDO STATE_DISCONNECTING")
                             }
                         }
                     }
@@ -604,6 +609,57 @@ class MainService : Service(){
         deviceBluetoothGatt.sendPacketToBDO(requestCharacteristic!!,queueRequest[0].second)
     }
 
+    fun setMultipleAttributes(attributes: List<DSRCAttribut>){
+        Log.d(TAG, "setMultipleAttributes")
+        // Store all responses packets
+        val responses: MutableList<Int> = mutableListOf()
+        // Store all packets to send
+        val queueRequest: MutableList<Pair<DSRCAttribut,ByteArray>> = mutableListOf()
+        for(attr in attributes){
+            queueRequest.add(Pair(attr,dsrcManager.prepareWriteCommandPacket(attr, attr.data!!,
+                autoFillWithZero = true,
+                temporaryData = false
+            )))
+        }
+
+        val handler = @SuppressLint("HandlerLeak")
+        object: Handler(){
+            override fun handleMessage(msg: Message) {
+                super.handleMessage(msg)
+                var packetResponse: ByteArray? = null
+                if(msg.obj != null) {
+                    packetResponse = msg.obj as ByteArray
+                }
+
+                when(msg.what){
+                    SEND -> {
+
+                    }
+                    RECEIVE -> {
+                        // Add response
+                        packetResponse?.copyOfRange(6,7)?.get(0)?.toInt()?.let { responses.add(it) }
+                        // Remove first request packet added
+                        queueRequest.removeAt(0)
+
+                        if(queueRequest.isNotEmpty()){
+                            deviceBluetoothGatt.sendPacketToBDO(requestCharacteristic!!,queueRequest[0].second)
+                        }
+                        else{
+                            obtainMessage(END).sendToTarget()
+                        }
+                    }
+                    END -> {
+                        sendBroadcastMenuInformationsSaved(responses.toTypedArray())
+                        resetHandler()
+                    }
+                }
+            }
+        }
+        // TODO add all packet to queueRequest
+        setResponseHandler(handler)
+        deviceBluetoothGatt.sendPacketToBDO(requestCharacteristic!!,queueRequest[0].second)
+    }
+
     private fun uploadFile(fileName: String){
         if(serviceRunning){
             Log.d(TAG,"Lancement de l'upload")
@@ -708,8 +764,16 @@ class MainService : Service(){
     }
 
     private fun sendBroadcastMenuInformations(listAttr: Array<DSRCAttribut>){
+        Log.d(TAG,"sendBroadcastMenuInformations")
         val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS)
         intent.putExtra(EXTRA_MENU_INFORMATIONS, listAttr)
+        LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
+    }
+
+    private fun sendBroadcastMenuInformationsSaved(listCodes: Array<Int>){
+        Log.d(TAG,"sendBroadcastMenuInformationsSaved")
+        val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED)
+        intent.putExtra(EXTRA_RETURN_CODE, listCodes.toIntArray())
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
     }
 
@@ -890,7 +954,7 @@ class MainService : Service(){
         private const val NOTIFICATION_CHANNEL_ID = "while_in_use_channel_01"
         private const val NOTIFICATION_CHANNEL_FILE_ID = "while_in_use_channel_02"
 
-        private const val TIME_TO_WAIT_BEFORE_SEND_MAPM = 1 * 60 * 1000
+        private const val TIME_TO_WAIT_BEFORE_SEND_MAPM = 5 * 60 * 1000
         private const val TIME_TO_WAIT_FOR_NO_FIX: Long = 2 * 60 * 1000
         private const val TIME_TO_WAIT_TO_SEND_LOC_TO_BDO: Long = 1 * 60 * 1000
 
@@ -915,6 +979,9 @@ class MainService : Service(){
         internal const val ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS =
             "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_BROADCAST_MENU_INFORMATIONS"
 
+        internal const val ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED =
+            "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED"
+
         // ################################################ //
 
         // #################### EXTRAS #################### //
@@ -927,6 +994,8 @@ class MainService : Service(){
         internal const val EXTRA_STATE_BDO  = "$PACKAGE_NAME.extra.STATE_BDO"
 
         internal const val EXTRA_MENU_INFORMATIONS  = "$PACKAGE_NAME.extra.INFORMATIONS"
+
+        internal const val EXTRA_RETURN_CODE  = "$PACKAGE_NAME.extra.RETURN_CODE"
 
         internal const val EXTRA_CHECK_REQUEST = "$PACKAGE_NAME.extra.CHECK_REQUEST"
         // ################################################ //

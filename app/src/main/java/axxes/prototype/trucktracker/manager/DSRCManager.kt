@@ -91,6 +91,9 @@ class DSRCManager {
         // Attribut length
         ret += attribut.length.toByte()
 
+        // Container type
+        ret += attribut.containerType.toByte()
+
         // Attribut data
         ret += attribut.data!!
 
@@ -157,6 +160,32 @@ class DSRCManager {
         }
 
         return text
+    }
+
+    fun readVehicleAxles(bytes: ByteArray): List<Int>{
+        val firstAxlesHeight = bytes[0].toInt()
+        //Read first 2 bits, 7 to 6
+        val tyre = (bytes[1].toInt() and 0xc0) shr 6
+        //Read bits 5 to 3
+        val trailer = (bytes[1].toInt() and 0x38) shr 3
+        //Read bits 2 to 0
+        val tractor = (bytes[1].toInt() and 0x07)
+
+        return listOf(firstAxlesHeight,tyre,trailer,tractor)
+    }
+
+    fun writeVehicleAxles(list: List<Int>): ByteArray{
+        var ret = ByteArray(0)
+        // First Axles Height
+        ret += list[0].toByte()
+        // Tyre type, trailer axles, tractor axles
+        val tyre = list[1] shl 6
+        val trailer = list[2] shl 3
+        val tractor = list[3]
+        val byte = tyre or trailer or tractor
+        ret += byte.toByte()
+
+        return ret
     }
 
     private fun prepareTramePacket(target: Int, category: Int, commandNo: Int, reserved: Int = 0, paramLength: Int): ByteArray{

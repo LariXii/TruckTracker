@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity(),
     private lateinit var currentFragment: Fragment
 
     private lateinit var deviceSelected: BluetoothDevice
+    private var waitToEnd = false
 
     private lateinit var viewModelContextState: ViewModelContextState
 
@@ -153,6 +154,9 @@ class MainActivity : AppCompatActivity(),
         )
         LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
             IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS)
+        )
+        LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
+            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED)
         )
     }
 
@@ -357,7 +361,7 @@ class MainActivity : AppCompatActivity(),
                     when(state){
                         MainService.STATE_CONNECTED -> {
                             replaceFragment(fragmentMenuInformations, true)
-                            dialogConnection!!.hide()
+                            dialogConnection!!.dismiss()
                             dialogConnection = null
                         }
                         MainService.STATE_CONNECTING -> {
@@ -367,20 +371,17 @@ class MainActivity : AppCompatActivity(),
                         }
                         MainService.STATE_DISCONNECTED -> {
                             //TODO Dialog disconnected
-                            dialogConnection!!.hide()
-                            dialogConnection = null
                         }
                         MainService.STATE_DISCONNECTING -> {
                             //TODO Dialog disconnecting
-                            dialogConnection = createConnectionDialog("Déconnexion au BDO...")
-                            dialogConnection!!.show()
                         }
                         MainService.STATE_FAILURE -> {
                             //TODO Dialog disconnecting
-                            dialogConnection!!.hide()
+                            dialogConnection!!.dismiss()
                             dialogConnection = null
                             dialogConnection = createErrorDialog("Error, device not found !")
                         }
+
                         else -> {
                             //TODO Not handled
                         }
@@ -389,9 +390,16 @@ class MainActivity : AppCompatActivity(),
                 MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS -> {
                     val values = intent.getParcelableArrayExtra(MainService.EXTRA_MENU_INFORMATIONS)
                     if(values != null){
-                        dialogConnection!!.hide()
+                        dialogConnection!!.dismiss()
                         dialogConnection = null
-                        fragmentMenuInformations.setValuesMenu(values.toList() as List<DSRCAttribut>)
+                    }
+                }
+
+                MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED -> {
+                    val values = intent.getIntArrayExtra(MainService.EXTRA_RETURN_CODE)
+                    if(values != null){
+                        dialogConnection!!.dismiss()
+                        dialogConnection = null
                     }
                 }
                 else -> {
@@ -413,6 +421,12 @@ class MainActivity : AppCompatActivity(),
 
     override fun onClickValide() {
         replaceFragment(fragmentJourney, false)
+    }
+
+    override fun onClickSave(listAttribut: List<DSRCAttribut>) {
+        mainService?.setMultipleAttributes(listAttribut)
+        dialogConnection = createConnectionDialog("Sauvegarde des données...")
+        dialogConnection!!.show()
     }
 
     override fun onClickJourney() {
@@ -443,7 +457,6 @@ class MainActivity : AppCompatActivity(),
 
     override fun onClickOk(){
         mainService?.disconnectToBDO()
-
         stopService(Intent(applicationContext, MainService::class.java))
         finish()
     }
