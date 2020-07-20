@@ -1,5 +1,6 @@
 package axxes.prototype.trucktracker.fragment
 
+import android.app.Activity
 import android.content.*
 import android.graphics.Color
 import android.os.Bundle
@@ -8,10 +9,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.Chronometer
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.widget.*
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -35,9 +33,10 @@ class FragmentJourney: Fragment() {
 
     interface ListenerFragmentJourney {
         fun onClickJourney()
+        fun onJourneyCreated()
     }
 
-    private lateinit var btnJourney: Button
+    private lateinit var btnJourney: ToggleButton
 
     private lateinit var tvGpsUnable: TextView
     private lateinit var tvMsgErr: TextView
@@ -68,6 +67,7 @@ class FragmentJourney: Fragment() {
         tvChronometer = view.findViewById(R.id.fj_chronometer)
 
         requestLocationSettingsEnable()
+        listener?.onJourneyCreated()
         return view
     }
 
@@ -99,6 +99,8 @@ class FragmentJourney: Fragment() {
         val task = LocationServices.getSettingsClient(activity!!.applicationContext).checkLocationSettings(builderSettingsLocation.build())
 
         task.addOnSuccessListener { response ->
+            val mainActivity = activity as MainActivity
+            mainActivity.mainService?.setServiceInformationsStates(response.locationSettingsStates.isGpsPresent, response.locationSettingsStates.isGpsUsable)
             btnJourney.isEnabled = true
             gpsUsable()
         }

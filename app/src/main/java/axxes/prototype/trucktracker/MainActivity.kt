@@ -54,7 +54,7 @@ class MainActivity : AppCompatActivity(),
 
     private lateinit var viewModelContextState: ViewModelContextState
 
-    private var mainService: MainService? = null
+    internal var mainService: MainService? = null
     private var mainServiceBound: Boolean = false
     private lateinit var mainServiceBroadcastReceiver: ForegroundOnlyBroadcastReceiver
     private var stateDevice: Int = MainService.STATE_DISCONNECTED
@@ -69,8 +69,13 @@ class MainActivity : AppCompatActivity(),
             mainServiceBound = true
             //Lors du bind au service change les préférences si celui-ci n'est pas en train de tourner (arrive lors de la relance de l'application via Android Studio)
             SharedPreferenceUtils.saveLocationTrackingPref(applicationContext,mainService!!.serviceRunning)
-            if(mainService!!.serviceRunning)
-                replaceFragment(fragmentJourney, false)
+
+            if(mainService!!.serviceRunning){
+                replaceFragment(fragmentJourney, addToBackStack = false)
+            }
+
+            dialogConnection?.dismiss()
+            dialogConnection = null
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -89,8 +94,6 @@ class MainActivity : AppCompatActivity(),
 
         mainServiceBroadcastReceiver = ForegroundOnlyBroadcastReceiver()
 
-        gotoFragment(fragmentConnexionBDO)
-
         // Permissions
         if(!locationPermissionApproved()){
             viewModelContextState.updatePermissionLocation(false)
@@ -103,11 +106,15 @@ class MainActivity : AppCompatActivity(),
             askToEnabledBT()
         }
 
+        gotoFragment(fragmentConnexionBDO)
+
         if(sharedPreferences.contains(SharedPreferenceUtils.KEY_DEVICE_ADDRESS)
             && sharedPreferences.contains(SharedPreferenceUtils.KEY_DEVICE_NAME)){
             val deviceAC = bluetoothAdapter.getRemoteDevice(sharedPreferences.getString(SharedPreferenceUtils.KEY_DEVICE_ADDRESS, null))
             fragmentConnexionBDO.setDeviceAutoConnexion(deviceAC)
         }
+
+        dialogConnection = createLoadingDialog("Connexion au service...", false)
 
     }
 
@@ -126,8 +133,10 @@ class MainActivity : AppCompatActivity(),
     override fun onStop() {
         super.onStop()
         if (mainServiceBound) {
-            if(!mainService!!.serviceRunning)
+            if(!mainService!!.serviceRunning){
                 mainService!!.disconnectToBDO()
+                finish()
+            }
             unbindService(mainServiceConnection)
             mainServiceBound = false
         }
@@ -461,6 +470,13 @@ class MainActivity : AppCompatActivity(),
             else {
                 requestForegroundPermissions()
             }
+        }
+    }
+
+    override fun onJourneyCreated() {
+        if(mainServiceBound && mainService!!.serviceRunning) {
+            fragmentJourney.updateChronometer(true, mainService?.getJourney()!!.startTime)
+            fragmentJourney.journeyInformationsToScreen(mainService?.getJourney()!!)
         }
     }
 

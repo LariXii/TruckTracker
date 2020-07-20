@@ -743,7 +743,7 @@ class MainService : Service(){
         // 3. Set up main Intent/Pending Intents for notification.
         val launchActivityIntent = Intent(this, MainActivity::class.java)
 
-        val launchActivityPendingIntent: PendingIntent = PendingIntent.getActivity(this,0,launchActivityIntent,0)
+        val launchActivityPendingIntent: PendingIntent = PendingIntent.getActivity(this,0,launchActivityIntent,PendingIntent.FLAG_UPDATE_CURRENT)
 
         // 4. Build and issue the notification.
         // Notification Channel Id is ignored for Android pre O (26).
@@ -998,6 +998,8 @@ class MainService : Service(){
         internal const val EXTRA_RETURN_CODE  = "$PACKAGE_NAME.extra.RETURN_CODE"
 
         internal const val EXTRA_CHECK_REQUEST = "$PACKAGE_NAME.extra.CHECK_REQUEST"
+
+        internal const val EXTRA_SERVICE_RUNNING = "$PACKAGE_NAME.extra.SERVICE_RUNNING"
         // ################################################ //
 
         // #################### PERMISSIONS CODES #################### //
