@@ -111,6 +111,7 @@ class FragmentJourney: Fragment() {
     }
 
     fun updateChronometer(state: Boolean, startTime: Long) {
+        btnJourney.isChecked = state
         if(state) {
             tvChronometer.base = startTime
             tvChronometer.start()

@@ -14,6 +14,7 @@ class MyFileUtils {
 
         const val TYPE_MAPM = "MAPM"
         const val TYPE_EVNT = "EVNT"
+        const val TYPE_ACCEL = "ACCEL"
         const val CREATOR_ID = "ea0bb5a01de9"
         const val CSV_EXT = "csv"
         const val TMP_EXT = "tmp"

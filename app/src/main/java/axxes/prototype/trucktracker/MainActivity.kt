@@ -50,7 +50,6 @@ class MainActivity : AppCompatActivity(),
     private lateinit var currentFragment: Fragment
 
     private lateinit var deviceSelected: BluetoothDevice
-    private var waitToEnd = false
 
     private lateinit var viewModelContextState: ViewModelContextState
 

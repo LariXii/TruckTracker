@@ -35,7 +35,6 @@ class FragmentMenuInformations: Fragment() {
     private lateinit var btnValide: Button
     private lateinit var btnSave: ImageButton
 
-    private lateinit var etNom: EditText
     private lateinit var etRoue: EditText
     private lateinit var etEssTractor: EditText
     private lateinit var etEssTrailer: EditText
@@ -73,7 +72,6 @@ class FragmentMenuInformations: Fragment() {
             listener?.onClickValide()
         }
 
-        etNom = v.findViewById(R.id.fmf_et_nom)
         etRoue = v.findViewById(R.id.fmf_et_roue)
         etEssTractor = v.findViewById(R.id.fmf_et_ess_tracteur)
         etEssTrailer = v.findViewById(R.id.fmf_et_ess_remorque)
@@ -92,7 +90,7 @@ class FragmentMenuInformations: Fragment() {
             numberPickerCustom("Nombre d'essieu de remorque",1,7, etEssTrailer)
         }
 
-        listEditText = listOf(etNom, etRoue, etEssTractor, etEssTrailer)
+        listEditText = listOf(etRoue, etEssTractor, etEssTrailer)
 
         val listAttribut: MutableList<DSRCAttribut> = mutableListOf()
         attributeVehicleAxles = DSRCAttributManager.finAttribut(1, 19)!!

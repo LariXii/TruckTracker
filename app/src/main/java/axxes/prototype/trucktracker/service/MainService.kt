@@ -20,6 +20,10 @@ import android.app.*
 import android.bluetooth.*
 import android.content.*
 import android.content.res.Configuration
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.os.*
@@ -28,10 +32,7 @@ import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import axxes.prototype.trucktracker.DeviceBluetoothGatt
 import axxes.prototype.trucktracker.MainActivity
-import axxes.prototype.trucktracker.manager.DSRCManager
 import axxes.prototype.trucktracker.utils.SharedPreferenceUtils
-import axxes.prototype.trucktracker.manager.EventManager
-import axxes.prototype.trucktracker.manager.MAPMManager
 import axxes.prototype.trucktracker.model.*
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
@@ -40,7 +41,7 @@ import java.io.FileInputStream
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPReply
 import axxes.prototype.trucktracker.R
-import axxes.prototype.trucktracker.manager.DSRCAttributManager
+import axxes.prototype.trucktracker.manager.*
 import java.io.IOException
 
 /**
@@ -105,6 +106,10 @@ class MainService : Service(){
     private lateinit var notificationManager: NotificationManager
     private lateinit var locationManager: LocationManager
     private lateinit var mapmManager: MAPMManager
+    private lateinit var sensorManager: SensorManager
+    private lateinit var accelerometerManager: AccelerometerManager
+    private lateinit var sensorListener: SensorAccelerometerListener
+
     private lateinit var serviceInformations: ServiceInformations
     private var notificationBuilder: NotificationCompat.Builder? = null
     private var sendFirst = false
@@ -161,7 +166,7 @@ class MainService : Service(){
             filesUploading.add(fileWriting)
 
             //Envoi du fichier au serveur
-            uploadFile(fileToSend)
+            uploadFile(listOf(fileToSend))
 
             timerHandler.postDelayed(this, (TIME_TO_WAIT_BEFORE_SEND_MAPM).toLong())
         }
@@ -186,9 +191,15 @@ class MainService : Service(){
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         serviceInformations = ServiceInformations()
         mapmManager = MAPMManager(this,399367311, 42, 10747906,2,2,4)
+        accelerometerManager = AccelerometerManager(this, 399367311)
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
     }
 
     private fun initializeReceiver(){
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
+        sensorListener = SensorAccelerometerListener()
+        sensorManager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
+
         registerReceiver(broadcastBluetooth, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(LocationManager.MODE_CHANGED_ACTION))
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION))
@@ -434,6 +445,7 @@ class MainService : Service(){
     override fun onDestroy() {
         unregisterReceiver(contextServiceBroadcastReceiver)
         unregisterReceiver(broadcastBluetooth)
+        sensorManager.unregisterListener(sensorListener)
         super.onDestroy()
     }
 
@@ -465,7 +477,6 @@ class MainService : Service(){
         // ensure this Service can be promoted to a foreground service, i.e., the service needs to
         // be officially started (which we do here).
         startService(Intent(applicationContext, MainService::class.java))
-        serviceRunning = true
 
         try {
             // TODO: Step 1.5, Subscribe to location changes.
@@ -482,6 +493,8 @@ class MainService : Service(){
             filesUploading.add(fileWriting)
             //Création du fichier de log EVNT
             eventManager.openFile()
+            //Création du fichier de l'accelerometre
+            accelerometerManager.openFile()
 
 
         } catch (unlikely: SecurityException) {
@@ -492,6 +505,7 @@ class MainService : Service(){
             countDownTimerNoFix.cancel()
             Log.e(TAG, "Lost location permissions. Couldn't remove updates. $unlikely")
         }
+        serviceRunning = true
     }
 
     fun unsubscribeToLocationUpdates() {
@@ -519,9 +533,9 @@ class MainService : Service(){
             // Fermeture des streams des fichiers MAPM et EVNT
             val nameFileMAPM = mapmManager.closeFile()
             val nameFileEvnt = eventManager.closeFile()
-            //TODO upload nameFileEvnt uploadFile(nameFileEvnt)+
+            val nameFileAccel = accelerometerManager.closeFile()
             // Envoi du fichier en cours d'écriture à la fin du service
-            uploadFile(nameFileMAPM)
+            uploadFile(listOf(nameFileMAPM, nameFileEvnt, nameFileAccel))
 
             // Sauvegarde de l'état du service (ici arrêté) dans les préférences
             SharedPreferenceUtils.saveLocationTrackingPref(this, false)
@@ -660,7 +674,7 @@ class MainService : Service(){
         deviceBluetoothGatt.sendPacketToBDO(requestCharacteristic!!,queueRequest[0].second)
     }
 
-    private fun uploadFile(fileName: String){
+    private fun uploadFile(fileNames: List<String>){
         if(serviceRunning){
             Log.d(TAG,"Lancement de l'upload")
             Thread(
@@ -682,14 +696,20 @@ class MainService : Service(){
 
                         ftpClient.login(LOGIN, PASSWORD)
                         Log.d(TAG,"Login au serveur FTP")
+                        ftpClient.enterLocalPassiveMode()
 
-                        //Transfer File
-                        val ret = ftpClient.storeFile("mapm_files/$fileName", FileInputStream(File(applicationContext.filesDir,fileName)))
-                        if(ret){
-                            Log.d(TAG,"StoreFile")
-                        }
-                        else{
-                            //TODO Handle this event
+                        var n = 0
+                        for(file in fileNames){
+                            //Transfer File
+                            val ret = ftpClient.storeFile("mapm_files/$file", FileInputStream(File(applicationContext.filesDir,file)))
+                            if(ret){
+                                n++
+                                Log.d(TAG,"File $file stored")
+                                Log.d(TAG,"${fileNames.size - n} files remaining")
+                            }
+                            else{
+                                Log.d(TAG,"Error during storing file")
+                            }
                         }
                     }
                     catch (ioe: IOException){
@@ -840,6 +860,19 @@ class MainService : Service(){
 
                     }
                 }
+            }
+        }
+    }
+
+    private inner class SensorAccelerometerListener(): SensorEventListener {
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+
+        }
+
+        override fun onSensorChanged(event: SensorEvent?) {
+            if(event != null && serviceRunning){
+                //Save new values
+                accelerometerManager.writeAcceleration(System.currentTimeMillis(), event.values[0], event.values[1], event.values[2])
             }
         }
     }
