@@ -1,0 +1,35 @@
+{
+  "_comment": "Premier test de parsing d'un fichier de configuration JSON",
+  "version": 1,
+  "tables": [
+    {
+      "eid": 1,
+      "attributes": [
+        {
+          "name": "ContextMark",
+          "id": 0,
+          "ct": 32,
+          "data": "C77FF0000100"
+        },
+        {
+          "name": "ContractAuthenticator",
+          "id": 4,
+          "ct": 36,
+          "data": "0401020304"
+        },
+        {
+          "name": "ReceiptText",
+          "id": 12,
+          "ct": 44,
+          "data": "050102030405"
+        },
+        {
+          "name": "ReceiptAuthenticator",
+          "id": 13,
+          "ct": 45,
+          "data": "03010203"
+        }
+      ]
+    }
+  ]
+}

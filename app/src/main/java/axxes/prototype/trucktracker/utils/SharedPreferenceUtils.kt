@@ -13,16 +13,12 @@ internal class SharedPreferenceUtils {
         const val KEY_APPLICATION_CRASHED = "application_crashed"
         //Clé du nom de l'utilisateur
         const val KEY_USER_NAME = "user_name"
-        //Clé du type de roue
-        const val KEY_TYRE_TYPE = "tyre_type"
-        //Clé de l'essieu du tracteur
-        const val KEY_TRACTOR_AXLES = "tractor_axles"
-        //Clé de l'essieu de la remorque
-        const val KEY_TRAILER_AXLES = "trailer_axles"
         //Clé du nom du device
         const val KEY_DEVICE_NAME = "device_name"
         //Clé de l'addresse du device
         const val KEY_DEVICE_ADDRESS = "device_addr"
+        //Clé du numéro de séquence
+        const val KEY_SEQUENCE_NUMBER = "sequence_number"
 
         /**
          * Returns true if requesting location updates, otherwise returns false.
@@ -46,10 +42,17 @@ internal class SharedPreferenceUtils {
             editor.putString(key, value)
             editor.apply()
         }
-
         fun eraseStringPreference(context: Context, key: String){
             val editor = context.getSharedPreferences(PREFERENCE_KEY, Context.MODE_PRIVATE).edit()
             editor.remove(key)
+            editor.apply()
+        }
+        fun getSequenceNumber(context: Context): Int =
+            context.getSharedPreferences(PREFERENCE_KEY, Context.MODE_PRIVATE).getInt(KEY_SEQUENCE_NUMBER, 0)
+
+        fun saveSequenceNumber(context: Context, number: Int){
+            val editor = context.getSharedPreferences(PREFERENCE_KEY, Context.MODE_PRIVATE).edit()
+            editor.putInt(KEY_SEQUENCE_NUMBER, number)
             editor.apply()
         }
     }

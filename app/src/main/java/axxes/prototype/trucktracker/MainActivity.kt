@@ -25,6 +25,7 @@ import axxes.prototype.trucktracker.fragment.FragmentJourney
 import axxes.prototype.trucktracker.fragment.FragmentMenuInformations
 import axxes.prototype.trucktracker.model.DSRCAttribut
 import axxes.prototype.trucktracker.service.MainService
+import axxes.prototype.trucktracker.utils.MyJsonUtils
 import axxes.prototype.trucktracker.utils.SharedPreferenceUtils
 import axxes.prototype.trucktracker.viewmodel.ContextStateViewModelFactory
 import axxes.prototype.trucktracker.viewmodel.ViewModelContextState
@@ -57,6 +58,7 @@ class MainActivity : AppCompatActivity(),
     private var mainServiceBound: Boolean = false
     private lateinit var mainServiceBroadcastReceiver: ForegroundOnlyBroadcastReceiver
     private var stateDevice: Int = MainService.STATE_DISCONNECTED
+    private var restarting = false
 
     private var dialogConnection: AlertDialog? = null
     // Monitors connection to the while-in-use service.
@@ -71,6 +73,10 @@ class MainActivity : AppCompatActivity(),
 
             if(mainService!!.serviceRunning){
                 replaceFragment(fragmentJourney, addToBackStack = false)
+            }
+            else{
+                if(restarting)
+                    replaceFragment(fragmentConnexionBDO, addToBackStack = false)
             }
 
             dialogConnection?.dismiss()
@@ -114,7 +120,7 @@ class MainActivity : AppCompatActivity(),
         }
 
         dialogConnection = createLoadingDialog("Connexion au service...", false)
-
+        restarting = false
     }
 
     override fun onStart() {
@@ -129,12 +135,16 @@ class MainActivity : AppCompatActivity(),
         bindService(serviceIntent, mainServiceConnection, Context.BIND_AUTO_CREATE)
     }
 
+    override fun onRestart() {
+        super.onRestart()
+        restarting = true
+    }
+
     override fun onStop() {
         super.onStop()
         if (mainServiceBound) {
             if(!mainService!!.serviceRunning){
                 mainService!!.disconnectToBDO()
-                finish()
             }
             unbindService(mainServiceConnection)
             mainServiceBound = false
@@ -164,7 +174,7 @@ class MainActivity : AppCompatActivity(),
             IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS)
         )
         LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
-            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED)
+            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED)
         )
     }
 
@@ -217,6 +227,19 @@ class MainActivity : AppCompatActivity(),
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when(requestCode){
+            10 -> {
+                when(resultCode){
+                    Activity.RESULT_OK -> {
+                        val pathFile = data?.data?.path
+                        if(pathFile != null){
+                            val listAttributes = MyJsonUtils.readJSONFile(this ,pathFile)
+                            mainService?.setMultipleAttributes(listAttributes)
+                            dialogConnection = createLoadingDialog("Chargement des données...", false)
+                            dialogConnection!!.show()
+                        }
+                    }
+                }
+            }
             MainService.PERMISSION_BLUETOOTH_REQUEST_CODE -> {
                 when(resultCode){
                     Activity.RESULT_OK -> {
@@ -315,6 +338,7 @@ class MainActivity : AppCompatActivity(),
 
     private fun replaceFragment(fragment: Fragment, addToBackStack: Boolean){
         val transaction = fragmentManager.beginTransaction()
+        fragmentManager.primaryNavigationFragment?.let { transaction.remove(it) }
         transaction.replace(R.id.container, fragment)
         if(addToBackStack)
             transaction.addToBackStack(null)
@@ -379,7 +403,7 @@ class MainActivity : AppCompatActivity(),
                     when(state){
                         MainService.STATE_CONNECTED -> {
                             stateDevice = state
-                            replaceFragment(fragmentMenuInformations, true)
+                            replaceFragment(fragmentMenuInformations, false)
                             dialogConnection!!.dismiss()
                             dialogConnection = null
                         }
@@ -412,11 +436,17 @@ class MainActivity : AppCompatActivity(),
                     }
                 }
 
-                MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED -> {
+                MainService.ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED -> {
                     val values = intent.getIntArrayExtra(MainService.EXTRA_RETURN_CODE)
                     if(values != null){
                         dialogConnection!!.dismiss()
                         dialogConnection = null
+                        if(values.sum() != 0){
+                            dialogConnection = createErrorDialog("Une erreur est arrivé lors du chargement des données via le fichier")
+                        }
+                        else{
+                            fragmentMenuInformations.getMenuInformations()
+                        }
                     }
                 }
                 else -> {
@@ -444,6 +474,12 @@ class MainActivity : AppCompatActivity(),
         mainService?.setMultipleAttributes(listAttribut)
         dialogConnection = createLoadingDialog("Sauvegarde des données...", false)
         dialogConnection!!.show()
+    }
+
+    override fun onClickDownload() {
+        val fileIntent = Intent(Intent.ACTION_GET_CONTENT)
+        fileIntent.type = "*/*"
+        startActivityForResult(fileIntent, 10)
     }
 
     override fun onClickJourney() {

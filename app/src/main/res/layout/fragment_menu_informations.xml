@@ -101,6 +101,13 @@
                 android:layout_height="match_parent"
                 android:orientation="horizontal">
 
+                <ImageButton
+                    android:id="@+id/fmf_btn_download"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="end"
+                    app:srcCompat="@drawable/ic_download_file" />
+
                 <Space
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

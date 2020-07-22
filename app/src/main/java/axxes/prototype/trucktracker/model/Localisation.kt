@@ -8,7 +8,7 @@ import axxes.prototype.trucktracker.utils.MyFileUtils
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class Localisation(private val location: Location?): Parcelable{
+class Localisation(private val location: Location?, _sequenceNumber: Int): Parcelable{
     //Temps auquel est arrivé la localisation
     val timeFix: Long
 
@@ -27,7 +27,7 @@ class Localisation(private val location: Location?): Parcelable{
     private val c13: Int = 20
     //Numéro de séquence de la localisation
     //TODO Use system to store and load sequence number
-    private val c14: Int = 0
+    private val c14: Int = _sequenceNumber
     //Altitude
     private val c15: Double
 
@@ -100,6 +100,7 @@ class Localisation(private val location: Location?): Parcelable{
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
         parcel.writeParcelable(location, flags)
+        parcel.writeInt(c14)
     }
 
     override fun describeContents(): Int {
@@ -108,7 +109,7 @@ class Localisation(private val location: Location?): Parcelable{
 
     companion object CREATOR : Parcelable.Creator<Localisation> {
         override fun createFromParcel(parcel: Parcel): Localisation {
-            return Localisation(parcel.readParcelable(Location::class.java.classLoader))
+            return Localisation(parcel.readParcelable(Location::class.java.classLoader), parcel.readInt())
         }
 
         override fun newArray(size: Int): Array<Localisation?> {

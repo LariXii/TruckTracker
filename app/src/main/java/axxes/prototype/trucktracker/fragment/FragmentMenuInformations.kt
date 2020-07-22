@@ -1,10 +1,8 @@
 package axxes.prototype.trucktracker.fragment
 
-import android.app.Dialog
-import android.app.PendingIntent
+import android.app.Activity
 import android.content.*
 import android.os.Bundle
-import android.text.Editable
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -13,13 +11,13 @@ import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import axxes.prototype.trucktracker.MainActivity
 import axxes.prototype.trucktracker.R
 import axxes.prototype.trucktracker.manager.DSRCAttributManager
 import axxes.prototype.trucktracker.manager.DSRCManager
 import axxes.prototype.trucktracker.model.DSRCAttribut
 import axxes.prototype.trucktracker.model.DSRCAttributEID1
 import axxes.prototype.trucktracker.service.MainService
+import axxes.prototype.trucktracker.utils.MyJsonUtils
 
 class FragmentMenuInformations: Fragment() {
     var listener: ListenerFragmentMenuInformations? = null
@@ -27,6 +25,7 @@ class FragmentMenuInformations: Fragment() {
     interface ListenerFragmentMenuInformations{
         fun onClickValide()
         fun onClickSave(listAttribut: List<DSRCAttribut>)
+        fun onClickDownload()
         fun onGetAttributesMenu(listAttribut: MutableList<DSRCAttribut>)
     }
 
@@ -34,6 +33,7 @@ class FragmentMenuInformations: Fragment() {
 
     private lateinit var btnValide: Button
     private lateinit var btnSave: ImageButton
+    private lateinit var btnDownload: ImageButton
 
     private lateinit var etRoue: EditText
     private lateinit var etEssTractor: EditText
@@ -61,10 +61,14 @@ class FragmentMenuInformations: Fragment() {
                     , etEssTrailer.text.toString().toInt()
                     , etEssTractor.text.toString().toInt()
                 )
-            Log.d("InformationsMenu","Valeurs avant envoie : $listValues")
             attributeVehicleAxles.data = dsrcManager.writeVehicleAxles(listValues)
 
             listener?.onClickSave(listOf(attributeVehicleAxles))
+        }
+
+        btnDownload = v.findViewById(R.id.fmf_btn_download)
+        btnDownload.setOnClickListener{
+            listener?.onClickDownload()
         }
 
         btnValide = v.findViewById(R.id.fmf_btn_valider)
@@ -92,11 +96,7 @@ class FragmentMenuInformations: Fragment() {
 
         listEditText = listOf(etRoue, etEssTractor, etEssTrailer)
 
-        val listAttribut: MutableList<DSRCAttribut> = mutableListOf()
-        attributeVehicleAxles = DSRCAttributManager.finAttribut(1, 19)!!
-        listAttribut.add(attributeVehicleAxles)
-
-        listener?.onGetAttributesMenu(listAttribut)
+        getMenuInformations()
 
         return v
     }
@@ -112,13 +112,21 @@ class FragmentMenuInformations: Fragment() {
             IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS)
         )
         LocalBroadcastManager.getInstance(context).registerReceiver(serviceBroadcastReceiver,
-            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED)
+            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED)
         )
     }
 
     override fun onDetach() {
         LocalBroadcastManager.getInstance(appContext).unregisterReceiver(serviceBroadcastReceiver)
         super.onDetach()
+    }
+
+    fun getMenuInformations(){
+        val listAttribut: MutableList<DSRCAttribut> = mutableListOf()
+        attributeVehicleAxles = DSRCAttributManager.finAttribut(1, 19)!!
+        listAttribut.add(attributeVehicleAxles)
+
+        listener?.onGetAttributesMenu(listAttribut)
     }
 
     private fun numberPickerCustom(title: String, minVal: Int, maxVal: Int, editText: EditText) {
@@ -141,7 +149,6 @@ class FragmentMenuInformations: Fragment() {
 
     fun setValuesMenu(array: List<DSRCAttribut>){
         for(attr in array){
-            Log.d("FragmentMenuInformations","Attributs : ${attr.attrName} ::: size : ${attr.data?.size}\nData : ${DSRCManager.toHexString(attr.data!!)}")
             when(attr.attrName){
                 DSRCAttributEID1.VEHICLE_AXLES.attribut.attrName -> {
                     attributeVehicleAxles.data = attr.data
@@ -165,7 +172,7 @@ class FragmentMenuInformations: Fragment() {
                     }
                 }
 
-                MainService.ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED -> {
+                MainService.ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED -> {
                     val values = intent.getIntArrayExtra(MainService.EXTRA_RETURN_CODE)
                     if(values != null){
                         if(values.sum() == 0)

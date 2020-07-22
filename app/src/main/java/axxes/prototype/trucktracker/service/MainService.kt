@@ -90,6 +90,7 @@ class MainService : Service(){
     private val countDownTimerSendLocToBDO = CountDownTimerSendLocToBDO(
         TIME_TO_WAIT_TO_SEND_LOC_TO_BDO,1000)
     private var noFixHappened = 0
+    private var sequenceNumber: Int = 0
     private lateinit var journey: Journey
     private lateinit var user: User
     // ########################################################## \\
@@ -335,7 +336,7 @@ class MainService : Service(){
                     noFixHappened = 0
 
                     for(loc in locationResult.locations){
-                        currentLocation = Localisation(loc)
+                        currentLocation = Localisation(loc, sequenceNumber++)
                         if(!sendFirst){
                             sendFirst = true
                             sendLocationToBDO()
@@ -505,6 +506,8 @@ class MainService : Service(){
             countDownTimerNoFix.cancel()
             Log.e(TAG, "Lost location permissions. Couldn't remove updates. $unlikely")
         }
+        sequenceNumber = SharedPreferenceUtils.getSequenceNumber(this)
+        Log.d(TAG,"Sequence number at start : $sequenceNumber")
         serviceRunning = true
     }
 
@@ -539,6 +542,8 @@ class MainService : Service(){
 
             // Sauvegarde de l'état du service (ici arrêté) dans les préférences
             SharedPreferenceUtils.saveLocationTrackingPref(this, false)
+            SharedPreferenceUtils.saveSequenceNumber(this, sequenceNumber)
+            Log.d(TAG,"Sequence number saved : $sequenceNumber")
             serviceRunning = false
 
         } catch (unlikely: SecurityException) {
@@ -630,6 +635,10 @@ class MainService : Service(){
         // Store all packets to send
         val queueRequest: MutableList<Pair<DSRCAttribut,ByteArray>> = mutableListOf()
         for(attr in attributes){
+            Log.d(TAG,"Attributes : ${attr.attrName} -- Data : ")
+            for(b in attr.data!!){
+                Log.d(TAG, "%02x".format(b))
+            }
             queueRequest.add(Pair(attr,dsrcManager.prepareWriteCommandPacket(attr, attr.data!!,
                 autoFillWithZero = true,
                 temporaryData = false
@@ -663,7 +672,7 @@ class MainService : Service(){
                         }
                     }
                     END -> {
-                        sendBroadcastMenuInformationsSaved(responses.toTypedArray())
+                        sendBroadcastMultipleAttributesSetted(responses.toTypedArray())
                         resetHandler()
                     }
                 }
@@ -690,8 +699,6 @@ class MainService : Service(){
                         if(!FTPReply.isPositiveCompletion(reply)){
                             ftpClient.disconnect()
                             Log.e(TAG,"FTP server refused connection")
-                            // TODO handle this exception
-                            //exitProcess(1)
                         }
 
                         ftpClient.login(LOGIN, PASSWORD)
@@ -701,19 +708,10 @@ class MainService : Service(){
                         var n = 0
                         for(file in fileNames){
                             //Transfer File
-                            val ret = ftpClient.storeFile("mapm_files/$file", FileInputStream(File(applicationContext.filesDir,file)))
-                            if(ret){
-                                n++
-                                Log.d(TAG,"File $file stored")
-                                Log.d(TAG,"${fileNames.size - n} files remaining")
-                            }
-                            else{
-                                Log.d(TAG,"Error during storing file")
-                            }
+                            ftpClient.storeFile("mapm_files/$file", FileInputStream(File(applicationContext.filesDir,file)))
                         }
                     }
                     catch (ioe: IOException){
-                        //TODO
                         Log.d(TAG,"Error during connection to file server")
                     }
                     finally {
@@ -790,9 +788,9 @@ class MainService : Service(){
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
     }
 
-    private fun sendBroadcastMenuInformationsSaved(listCodes: Array<Int>){
-        Log.d(TAG,"sendBroadcastMenuInformationsSaved")
-        val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED)
+    private fun sendBroadcastMultipleAttributesSetted(listCodes: Array<Int>){
+        Log.d(TAG,"sendBroadcastMultipleAttributesSetted")
+        val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED)
         intent.putExtra(EXTRA_RETURN_CODE, listCodes.toIntArray())
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
     }
@@ -1012,7 +1010,7 @@ class MainService : Service(){
         internal const val ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS =
             "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_BROADCAST_MENU_INFORMATIONS"
 
-        internal const val ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED =
+        internal const val ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED =
             "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED"
 
         // ################################################ //
