@@ -121,6 +121,21 @@
                     app:srcCompat="@android:drawable/ic_menu_save" />
 
             </LinearLayout>
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/frequency_accelerometer"/>
+                <EditText
+                    android:id="@+id/fmf_et_frequency"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/frequency_in_milisecond"
+                    android:inputType="number"/>
+            </LinearLayout>
 
         </LinearLayout>
 

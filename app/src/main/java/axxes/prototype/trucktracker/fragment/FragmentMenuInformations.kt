@@ -16,6 +16,7 @@ import axxes.prototype.trucktracker.manager.DSRCAttributManager
 import axxes.prototype.trucktracker.manager.DSRCManager
 import axxes.prototype.trucktracker.model.DSRCAttribut
 import axxes.prototype.trucktracker.model.DSRCAttributEID1
+import axxes.prototype.trucktracker.model.User
 import axxes.prototype.trucktracker.service.MainService
 import axxes.prototype.trucktracker.utils.MyJsonUtils
 
@@ -38,6 +39,8 @@ class FragmentMenuInformations: Fragment() {
     private lateinit var etRoue: EditText
     private lateinit var etEssTractor: EditText
     private lateinit var etEssTrailer: EditText
+    private lateinit var etFrequency: EditText
+    lateinit var userInfo: User
 
     private lateinit var listEditText: List<EditText>
     private lateinit var attributeVehicleAxles: DSRCAttribut
@@ -73,12 +76,16 @@ class FragmentMenuInformations: Fragment() {
 
         btnValide = v.findViewById(R.id.fmf_btn_valider)
         btnValide.setOnClickListener {
+            userInfo = User(etRoue.text.toString().toInt(), etEssTrailer.text.toString().toInt(), etEssTractor.text.toString().toInt())
+            if(etFrequency.text.toString().isNotEmpty())
+                userInfo.sensorDelay = etFrequency.text.toString().toInt()
             listener?.onClickValide()
         }
 
         etRoue = v.findViewById(R.id.fmf_et_roue)
         etEssTractor = v.findViewById(R.id.fmf_et_ess_tracteur)
         etEssTrailer = v.findViewById(R.id.fmf_et_ess_remorque)
+        etFrequency = v.findViewById(R.id.fmf_et_frequency)
 
         etRoue.showSoftInputOnFocus = false
         etRoue.setOnClickListener {

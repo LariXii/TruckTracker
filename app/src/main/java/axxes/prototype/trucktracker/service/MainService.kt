@@ -92,7 +92,7 @@ class MainService : Service(){
     private var noFixHappened = 0
     private var sequenceNumber: Int = 0
     private lateinit var journey: Journey
-    private lateinit var user: User
+    lateinit var user: User
     // ########################################################## \\
 
     // ########################### FILES ########################### //
@@ -191,22 +191,24 @@ class MainService : Service(){
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         serviceInformations = ServiceInformations()
-        mapmManager = MAPMManager(this,399367311, 42, 10747906,2,2,4)
         accelerometerManager = AccelerometerManager(this, 399367311)
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
     }
 
     private fun initializeReceiver(){
-        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
-        sensorListener = SensorAccelerometerListener()
-        sensorManager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
-
         registerReceiver(broadcastBluetooth, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(LocationManager.MODE_CHANGED_ACTION))
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION))
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(Intent.ACTION_BATTERY_LOW))
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(Intent.ACTION_BATTERY_OKAY))
         registerReceiver(contextServiceBroadcastReceiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+    }
+
+    private fun initializeAccelerometer(){
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
+        sensorListener = SensorAccelerometerListener()
+        Log.d(TAG,"Fréquence du sensor : ${user.sensorDelay}")
+        sensorManager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, user.sensorDelay)
     }
 
     private fun initializeBluetoothGattCallBack(){
@@ -339,7 +341,7 @@ class MainService : Service(){
                         currentLocation = Localisation(loc, sequenceNumber++)
                         if(!sendFirst){
                             sendFirst = true
-                            sendLocationToBDO()
+                            sendJourneyInformationsToBDO()
                             countDownTimerSendLocToBDO.start()
                         }
                         journey.addLocation(currentLocation)
@@ -446,7 +448,6 @@ class MainService : Service(){
     override fun onDestroy() {
         unregisterReceiver(contextServiceBroadcastReceiver)
         unregisterReceiver(broadcastBluetooth)
-        sensorManager.unregisterListener(sensorListener)
         super.onDestroy()
     }
 
@@ -466,6 +467,8 @@ class MainService : Service(){
     fun subscribeToLocationUpdates() {
         Log.d(TAG, "subscribeToLocationUpdates()")
 
+        mapmManager = MAPMManager(this,399367311, 42, 10747906, user.tyreType, user.trailerAxles, user.tractorAxles)
+        initializeAccelerometer()
         journey = Journey()
         journey.startJourney()
 
@@ -524,7 +527,8 @@ class MainService : Service(){
                     countDownTimerSendLocToBDO.cancel()
                     // Stop journey
                     journey.stopJourney()
-                    //stopSelf()
+
+                    sensorManager.unregisterListener(sensorListener)
                 } else {
                     Log.d(TAG, "Failed to remove Location Callback.")
                 }
@@ -628,20 +632,16 @@ class MainService : Service(){
         deviceBluetoothGatt.sendPacketToBDO(requestCharacteristic!!,queueRequest[0].second)
     }
 
-    fun setMultipleAttributes(attributes: List<DSRCAttribut>){
+    fun setMultipleAttributes(attributes: List<DSRCAttribut>, broadcast: String){
         Log.d(TAG, "setMultipleAttributes")
         // Store all responses packets
         val responses: MutableList<Int> = mutableListOf()
         // Store all packets to send
         val queueRequest: MutableList<Pair<DSRCAttribut,ByteArray>> = mutableListOf()
         for(attr in attributes){
-            Log.d(TAG,"Attributes : ${attr.attrName} -- Data : ")
-            for(b in attr.data!!){
-                Log.d(TAG, "%02x".format(b))
-            }
             queueRequest.add(Pair(attr,dsrcManager.prepareWriteCommandPacket(attr, attr.data!!,
                 autoFillWithZero = true,
-                temporaryData = false
+                temporaryData = attr.temporaryData
             )))
         }
 
@@ -672,7 +672,7 @@ class MainService : Service(){
                         }
                     }
                     END -> {
-                        sendBroadcastMultipleAttributesSetted(responses.toTypedArray())
+                        sendBroadcastMultipleAttributesSetted(responses.toTypedArray(), broadcast)
                         resetHandler()
                     }
                 }
@@ -788,9 +788,9 @@ class MainService : Service(){
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
     }
 
-    private fun sendBroadcastMultipleAttributesSetted(listCodes: Array<Int>){
+    private fun sendBroadcastMultipleAttributesSetted(listCodes: Array<Int>, broadcast: String){
         Log.d(TAG,"sendBroadcastMultipleAttributesSetted")
-        val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED)
+        val intent = Intent(broadcast)
         intent.putExtra(EXTRA_RETURN_CODE, listCodes.toIntArray())
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
     }
@@ -816,20 +816,27 @@ class MainService : Service(){
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
     }
 
-    private fun sendLocationToBDO(){
+    private fun sendJourneyInformationsToBDO(){
+        val listAttributes = mutableListOf<DSRCAttribut>()
         val latitude = currentLocation.latitude
         val longitude = currentLocation.longitude
         val timeFix: Long = currentLocation.timeFix
 
+        var attribut = DSRCAttributManager.finAttribut(2,50)
         val gnssData = dsrcManager.prepareGNSSPacket(timeFix,longitude,latitude,12,4)
+        attribut!!.data = gnssData
+        attribut.temporaryData = true
+        listAttributes.add(attribut)
 
-        val attribut = DSRCAttributManager.finAttribut(2,50)
+        attribut = DSRCAttributManager.finAttribut(2,49)
+        attribut!!.data = listOf<Byte>(0x00).toByteArray()
+        listAttributes.add(attribut)
 
-        val packetToSend = dsrcManager.prepareWriteCommandPacket(attribut!!,gnssData,
-            autoFillWithZero = true,
-            temporaryData = true
-        )
-        deviceBluetoothGatt.sendPacketToBDO(requestCharacteristic!!,packetToSend)
+        attribut = DSRCAttributManager.finAttribut(2,51)
+        attribut!!.data = listOf<Byte>(0x00).toByteArray()
+        listAttributes.add(attribut)
+
+        setMultipleAttributes(listAttributes, ACTION_SERVICE_LOCATION_BROADCAST)
     }
 
     // ################################################################################ \\
@@ -962,7 +969,7 @@ class MainService : Service(){
 
     inner class CountDownTimerSendLocToBDO(millisInFuture: Long, countDownInterval: Long) : CountDownTimer(millisInFuture, countDownInterval){
         override fun onFinish() {
-            sendLocationToBDO()
+            sendJourneyInformationsToBDO()
             countDownTimerSendLocToBDO.start()
         }
 
@@ -1011,7 +1018,7 @@ class MainService : Service(){
             "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_BROADCAST_MENU_INFORMATIONS"
 
         internal const val ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED =
-            "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_BROADCAST_MENU_INFORMATIONS_SAVED"
+            "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED"
 
         // ################################################ //
 

@@ -3,7 +3,7 @@ package axxes.prototype.trucktracker.model
 import android.os.Parcel
 import android.os.Parcelable
 
-class DSRCAttribut(val attrName: String, val attrId: Int, val attrEID: Int, val containerType: Int, val length: Int, val cacheable: Boolean = false, var data: ByteArray? = null): Parcelable {
+class DSRCAttribut(val attrName: String, val attrId: Int, val attrEID: Int, val containerType: Int, val length: Int, val cacheable: Boolean = false, var temporaryData: Boolean = false, var data: ByteArray? = null): Parcelable {
 
     constructor(parcel: Parcel) : this(
         parcel.readString()!!,
@@ -11,6 +11,7 @@ class DSRCAttribut(val attrName: String, val attrId: Int, val attrEID: Int, val 
         parcel.readInt(),
         parcel.readInt(),
         parcel.readInt(),
+        parcel.readByte() != 0.toByte(),
         parcel.readByte() != 0.toByte(),
         parcel.createByteArray()
     ) {
@@ -23,6 +24,7 @@ class DSRCAttribut(val attrName: String, val attrId: Int, val attrEID: Int, val 
         parcel.writeInt(containerType)
         parcel.writeInt(length)
         parcel.writeByte(if (cacheable) 1 else 0)
+        parcel.writeByte(if (temporaryData) 1 else 0)
         parcel.writeByteArray(data)
     }
 

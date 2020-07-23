@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity(),
     private lateinit var mainServiceBroadcastReceiver: ForegroundOnlyBroadcastReceiver
     private var stateDevice: Int = MainService.STATE_DISCONNECTED
     private var restarting = false
+    private var waitResult = false
 
     private var dialogConnection: AlertDialog? = null
     // Monitors connection to the while-in-use service.
@@ -91,6 +92,7 @@ class MainActivity : AppCompatActivity(),
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(TAG,"onCreate()")
         setContentView(R.layout.activity_main)
 
         // Managers
@@ -125,30 +127,28 @@ class MainActivity : AppCompatActivity(),
 
     override fun onStart() {
         super.onStart()
+        Log.d(TAG,"onStart()")
 
         // Receivers
         registerReceiver(broadcastBluetooth, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
         initializeReveivers()
 
         //Liaison du service de localisation avec l'activité principale
-        val serviceIntent = Intent(this, MainService::class.java)
-        bindService(serviceIntent, mainServiceConnection, Context.BIND_AUTO_CREATE)
+        if(!mainServiceBound){
+            val serviceIntent = Intent(this, MainService::class.java)
+            bindService(serviceIntent, mainServiceConnection, Context.BIND_AUTO_CREATE)
+        }
     }
 
     override fun onRestart() {
         super.onRestart()
+        Log.d(TAG,"onRestart()")
         restarting = true
     }
 
     override fun onStop() {
         super.onStop()
-        if (mainServiceBound) {
-            if(!mainService!!.serviceRunning){
-                mainService!!.disconnectToBDO()
-            }
-            unbindService(mainServiceConnection)
-            mainServiceBound = false
-        }
+        Log.d(TAG,"onStop()")
         //Enlève le listener associé aux changements de préférences
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         //Enlève le listener sur le LocalBroadCast
@@ -156,6 +156,20 @@ class MainActivity : AppCompatActivity(),
         LocalBroadcastManager.getInstance(this).unregisterReceiver(
             mainServiceBroadcastReceiver
         )
+    }
+
+    override fun onDestroy() {
+        Log.d(TAG,"onDestroy()")
+        Log.d(TAG,"Myservice : $mainService")
+        if (mainServiceBound && !waitResult) {
+            if(!mainService!!.serviceRunning){
+                mainService!!.disconnectToBDO()
+            }
+            unbindService(mainServiceConnection)
+            mainServiceBound = false
+        }
+
+        super.onDestroy()
     }
 
     private fun initializeManagers(){
@@ -233,9 +247,10 @@ class MainActivity : AppCompatActivity(),
                         val pathFile = data?.data?.path
                         if(pathFile != null){
                             val listAttributes = MyJsonUtils.readJSONFile(this ,pathFile)
-                            mainService?.setMultipleAttributes(listAttributes)
+                            mainService?.setMultipleAttributes(listAttributes, MainService.ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED)
                             dialogConnection = createLoadingDialog("Chargement des données...", false)
                             dialogConnection!!.show()
+                            waitResult = false
                         }
                     }
                 }
@@ -467,11 +482,12 @@ class MainActivity : AppCompatActivity(),
     }
 
     override fun onClickValide() {
+        mainService?.user = fragmentMenuInformations.userInfo
         replaceFragment(fragmentJourney, false)
     }
 
     override fun onClickSave(listAttribut: List<DSRCAttribut>) {
-        mainService?.setMultipleAttributes(listAttribut)
+        mainService?.setMultipleAttributes(listAttribut, MainService.ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED)
         dialogConnection = createLoadingDialog("Sauvegarde des données...", false)
         dialogConnection!!.show()
     }
@@ -479,6 +495,7 @@ class MainActivity : AppCompatActivity(),
     override fun onClickDownload() {
         val fileIntent = Intent(Intent.ACTION_GET_CONTENT)
         fileIntent.type = "*/*"
+        waitResult = true
         startActivityForResult(fileIntent, 10)
     }
 

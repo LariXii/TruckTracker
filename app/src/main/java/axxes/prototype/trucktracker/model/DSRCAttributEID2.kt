@@ -9,7 +9,8 @@ enum class DSRCAttributEID2 (val attribut: DSRCAttribut) {
             32,
             6,
             false,
-            listOf<Byte>(0x20, 0xf7.toByte(), 0x7f, 0xf0.toByte(), 0x00, 0x02, 0x01).toByteArray()
+            temporaryData = false,
+            data = listOf<Byte>(0x20, 0xf7.toByte(), 0x7f, 0xf0.toByte(), 0x00, 0x02, 0x01).toByteArray()
         )
     ),
     LICENSE_PLATE_NUMBER(
@@ -275,8 +276,9 @@ enum class DSRCAttributEID2 (val attribut: DSRCAttribut) {
             2,
             2,
             1+8,
-            false,
-            listOf<Byte>(0x03, 0x00, 0xf9.toByte(), 0xfa.toByte()).toByteArray()
+            cacheable = false,
+            temporaryData = false,
+            data = listOf<Byte>(0x03, 0x00, 0xf9.toByte(), 0xfa.toByte()).toByteArray()
         )
     )
 }

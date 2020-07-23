@@ -35,6 +35,8 @@
     <string name="type_de_roue">Type de roue</string>
     <string name="nombre_d_essieu_de_remorque">Nombre d\'essieu de remorque</string>
     <string name="nombre_d_essieu_du_camion">Nombre d\'essieu du camion</string>
+    <string name="frequency_accelerometer">Fréquence de l\'accéléromètre</string>
+    <string name="frequency_in_milisecond">Fréquence en us</string>
 
 
 </resources>

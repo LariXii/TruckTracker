@@ -1,11 +1,14 @@
 package axxes.prototype.trucktracker.model
 
+import android.hardware.SensorManager
 import android.os.Parcel
 import android.os.Parcelable
 
-class User(val firstName: String, val tyreType: Int, val trailerAxles: Int, val tractorAxles: Int): Parcelable {
+class User(val tyreType: Int, val trailerAxles: Int, val tractorAxles: Int): Parcelable {
+
+    var sensorDelay: Int = SensorManager.SENSOR_DELAY_UI
+
     constructor(parcel: Parcel) : this(
-        parcel.readString().toString(),
         parcel.readInt(),
         parcel.readInt(),
         parcel.readInt()
@@ -13,7 +16,6 @@ class User(val firstName: String, val tyreType: Int, val trailerAxles: Int, val 
     }
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
-        parcel.writeString(firstName)
         parcel.writeInt(tyreType)
         parcel.writeInt(trailerAxles)
         parcel.writeInt(tractorAxles)

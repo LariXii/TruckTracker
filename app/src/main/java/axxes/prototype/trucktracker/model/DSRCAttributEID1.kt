@@ -8,8 +8,9 @@ enum class DSRCAttributEID1(val attribut: DSRCAttribut) {
             1,
             32,
             6,
-            false,
-            listOf<Byte>(0x20, 0xf7.toByte(), 0x7f, 0xf0.toByte(), 0x00, 0x01, 0x00).toByteArray()
+            cacheable = false,
+            temporaryData = false,
+            data = listOf<Byte>(0x20, 0xf7.toByte(), 0x7f, 0xf0.toByte(), 0x00, 0x01, 0x00).toByteArray()
         )
     ),
     CONTRACT_AUTHENTICATOR(
@@ -268,8 +269,9 @@ enum class DSRCAttributEID1(val attribut: DSRCAttribut) {
             1,
             2,
             1+8,
-            false,
-            listOf<Byte>(0x01, 0x00).toByteArray()
+            cacheable = false,
+            temporaryData = false,
+            data = listOf<Byte>(0x01, 0x00).toByteArray()
         )
     )
 }
