@@ -691,6 +691,7 @@ class MainService : Service(){
                     val ftpClient = FTPClient()
 
                     try{
+                        sendBroadCastUploadState(CONNECTION)
                         ftpClient.connect(SERVER_NAME)
                         Log.d(TAG,"Connection au serveur FTP")
 
@@ -705,13 +706,15 @@ class MainService : Service(){
                         Log.d(TAG,"Login au serveur FTP")
                         ftpClient.enterLocalPassiveMode()
 
-                        var n = 0
+                        sendBroadCastUploadState(START_UPLOAD)
                         for(file in fileNames){
                             //Transfer File
                             ftpClient.storeFile("mapm_files/$file", FileInputStream(File(applicationContext.filesDir,file)))
                         }
+                        sendBroadCastUploadState(END_UPLOAD)
                     }
                     catch (ioe: IOException){
+                        sendBroadCastUploadState(ERROR_UPLOAD)
                         Log.d(TAG,"Error during connection to file server")
                     }
                     finally {
@@ -719,6 +722,7 @@ class MainService : Service(){
                             try{
                                 ftpClient.logout()
                                 ftpClient.disconnect()
+                                Log.d(TAG,"Deconnection au serveur FTP")
                             }
                             catch (ioe: IOException){
                                 //TODO
@@ -813,6 +817,13 @@ class MainService : Service(){
         Log.d(TAG,"broadCastServiceInformations")
         val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_JOURNEY)
         intent.putExtra(EXTRA_JOURNEY, journey)
+        LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
+    }
+
+    private fun sendBroadCastUploadState(state: Int){
+        Log.d(TAG,"sendBroadCastUploadState")
+        val intent = Intent(ACTION_SERVICE_LOCATION_BROADCAST_UPLOAD_STATE)
+        intent.putExtra(EXTRA_STATE_UPLOAD, state)
         LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
     }
 
@@ -1014,6 +1025,9 @@ class MainService : Service(){
         internal const val ACTION_SERVICE_LOCATION_BROADCAST_BDO_STATE =
             "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_BROADCAST_BDO_STATE"
 
+        internal const val ACTION_SERVICE_LOCATION_BROADCAST_UPLOAD_STATE =
+            "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_UPLOAD_STATE"
+
         internal const val ACTION_SERVICE_LOCATION_BROADCAST_MENU_INFORMATIONS =
             "$PACKAGE_NAME.action.ACTION_FOREGROUND_ONLY_LOCATION_BROADCAST_MENU_INFORMATIONS"
 
@@ -1030,6 +1044,8 @@ class MainService : Service(){
         internal const val EXTRA_DEVICE = "$PACKAGE_NAME.extra.DEVICE"
 
         internal const val EXTRA_STATE_BDO  = "$PACKAGE_NAME.extra.STATE_BDO"
+
+        internal const val EXTRA_STATE_UPLOAD  = "$PACKAGE_NAME.extra.STATE_UPLOAD"
 
         internal const val EXTRA_MENU_INFORMATIONS  = "$PACKAGE_NAME.extra.INFORMATIONS"
 
@@ -1059,6 +1075,11 @@ class MainService : Service(){
         internal const val STATE_DISCONNECTED = 12
         internal const val STATE_DISCONNECTING = 13
         internal const val STATE_FAILURE = -10
+
+        internal const val START_UPLOAD = 20
+        internal const val ERROR_UPLOAD = 21
+        internal const val END_UPLOAD = 22
+        internal const val CONNECTION = 23
     }
 }
 

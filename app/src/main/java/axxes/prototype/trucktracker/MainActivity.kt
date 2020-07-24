@@ -190,6 +190,9 @@ class MainActivity : AppCompatActivity(),
         LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
             IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_MULTIPLE_ATTRIBUTES_SETTED)
         )
+        LocalBroadcastManager.getInstance(applicationContext).registerReceiver(mainServiceBroadcastReceiver,
+            IntentFilter(MainService.ACTION_SERVICE_LOCATION_BROADCAST_UPLOAD_STATE)
+        )
     }
 
     private fun askToEnabledBT(){
@@ -461,6 +464,29 @@ class MainActivity : AppCompatActivity(),
                         }
                         else{
                             fragmentMenuInformations.getMenuInformations()
+                        }
+                    }
+                }
+                MainService.ACTION_SERVICE_LOCATION_BROADCAST_UPLOAD_STATE ->{
+                    Log.d(TAG,"ACTION_SERVICE_LOCATION_BROADCAST_UPLOAD_STATE")
+                    when(intent.getIntExtra(MainService.EXTRA_STATE_UPLOAD, -1)){
+                        MainService.CONNECTION -> {
+                            Log.d(TAG,"CONNECTION")
+                            dialogConnection = createLoadingDialog("Upload...", false)
+                            dialogConnection!!.show()
+                        }
+                        MainService.START_UPLOAD -> {
+
+                        }
+                        MainService.END_UPLOAD -> {
+                            Log.d(TAG,"END_UPLOAD")
+                            dialogConnection?.dismiss()
+                            dialogConnection = null
+                        }
+                        MainService.ERROR_UPLOAD -> {
+                            Log.d(TAG,"ERROR_UPLOAD")
+                            dialogConnection?.dismiss()
+                            dialogConnection = null
                         }
                     }
                 }
