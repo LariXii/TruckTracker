@@ -6,7 +6,7 @@ import android.os.Parcelable
 
 class User(val tyreType: Int, val trailerAxles: Int, val tractorAxles: Int): Parcelable {
 
-    var sensorDelay: Int = SensorManager.SENSOR_DELAY_UI
+    var sensorDelay: Int = 100
 
     constructor(parcel: Parcel) : this(
         parcel.readInt(),

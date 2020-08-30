@@ -207,8 +207,7 @@ class MainService : Service(){
     private fun initializeAccelerometer(){
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
         sensorListener = SensorAccelerometerListener()
-        Log.d(TAG,"Fréquence du sensor : ${user.sensorDelay}")
-        sensorManager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, user.sensorDelay)
+        sensorManager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
     }
 
     private fun initializeBluetoothGattCallBack(){
@@ -527,8 +526,6 @@ class MainService : Service(){
                     countDownTimerSendLocToBDO.cancel()
                     // Stop journey
                     journey.stopJourney()
-
-                    sensorManager.unregisterListener(sensorListener)
                 } else {
                     Log.d(TAG, "Failed to remove Location Callback.")
                 }
@@ -536,6 +533,8 @@ class MainService : Service(){
 
             // Arrêt du chronomètre d'envoi des fichiers
             timerHandler.removeCallbacks(timerRunnable)
+            sensorManager.unregisterListener(sensorListener)
+            timerAccelerometerHandler.removeCallbacks(timerAccelerometerRunnable)
 
             // Fermeture des streams des fichiers MAPM et EVNT
             val nameFileMAPM = mapmManager.closeFile()
@@ -880,6 +879,19 @@ class MainService : Service(){
         }
     }
 
+    private var isTimerAccelorometerStarted = false
+    private var accelerometerX: Float = 0.0f
+    private var accelerometerY: Float = 0.0f
+    private var accelerometerZ: Float = 0.0f
+
+    var timerAccelerometerHandler: Handler = Handler()
+    private var timerAccelerometerRunnable: Runnable = object : Runnable {
+        override fun run() {
+            accelerometerManager.writeAcceleration(System.currentTimeMillis(), accelerometerX, accelerometerY, accelerometerZ)
+            timerAccelerometerHandler.postDelayed(this, user.sensorDelay.toLong())
+        }
+    }
+
     private inner class SensorAccelerometerListener(): SensorEventListener {
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
 
@@ -887,8 +899,17 @@ class MainService : Service(){
 
         override fun onSensorChanged(event: SensorEvent?) {
             if(event != null && serviceRunning){
-                //Save new values
-                accelerometerManager.writeAcceleration(System.currentTimeMillis(), event.values[0], event.values[1], event.values[2])
+                accelerometerX = event.values[0]
+                accelerometerY = event.values[1]
+                accelerometerZ = event.values[2]
+                if(!isTimerAccelorometerStarted){
+                    Log.d(TAG,"Delay du sensor : ${user.sensorDelay}")
+                    //Start accelerometer timer
+                    timerAccelerometerHandler.postDelayed(timerAccelerometerRunnable, user.sensorDelay.toLong())
+                    //Write values
+                    accelerometerManager.writeAcceleration(System.currentTimeMillis(), accelerometerX, accelerometerY, accelerometerZ)
+                    isTimerAccelorometerStarted = true
+                }
             }
         }
     }
