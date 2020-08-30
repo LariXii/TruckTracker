@@ -78,7 +78,10 @@ class FragmentMenuInformations: Fragment() {
         btnValide.setOnClickListener {
             userInfo = User(etRoue.text.toString().toInt(), etEssTrailer.text.toString().toInt(), etEssTractor.text.toString().toInt())
             if(etFrequency.text.toString().isNotEmpty())
-                userInfo.sensorDelay = etFrequency.text.toString().toInt()
+                if(etFrequency.text.toString().toInt() < 1)
+                    userInfo.sensorDelay = 100
+                else
+                    userInfo.sensorDelay = etFrequency.text.toString().toInt()
             listener?.onClickValide()
         }
 
