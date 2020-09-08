@@ -549,6 +549,8 @@ class MainService : Service(){
             Log.d(TAG,"Sequence number saved : $sequenceNumber")
             serviceRunning = false
 
+            Log.d(TAG,"Nombre d'égalité $equal")
+
         } catch (unlikely: SecurityException) {
             SharedPreferenceUtils.saveLocationTrackingPref(
                 this,
@@ -884,10 +886,20 @@ class MainService : Service(){
     private var accelerometerY: Float = 0.0f
     private var accelerometerZ: Float = 0.0f
 
+    private var p_accelerometerX: Float = 0.0f
+    private var p_accelerometerY: Float = 0.0f
+    private var p_accelerometerZ: Float = 0.0f
+
     var timerAccelerometerHandler: Handler = Handler()
     private var timerAccelerometerRunnable: Runnable = object : Runnable {
         override fun run() {
-            accelerometerManager.writeAcceleration(System.currentTimeMillis(), accelerometerX, accelerometerY, accelerometerZ)
+
+            //Previous values
+            p_accelerometerX = accelerometerX
+            p_accelerometerY = accelerometerY
+            p_accelerometerZ = accelerometerZ
+
+            accelerometerManager.writeAcceleration(System.currentTimeMillis(), p_accelerometerX, p_accelerometerY, p_accelerometerZ)
             timerAccelerometerHandler.postDelayed(this, user.sensorDelay.toLong())
         }
     }
@@ -899,11 +911,12 @@ class MainService : Service(){
 
         override fun onSensorChanged(event: SensorEvent?) {
             if(event != null && serviceRunning){
+                //Current values
                 accelerometerX = event.values[0]
                 accelerometerY = event.values[1]
                 accelerometerZ = event.values[2]
+
                 if(!isTimerAccelorometerStarted){
-                    Log.d(TAG,"Delay du sensor : ${user.sensorDelay}")
                     //Start accelerometer timer
                     timerAccelerometerHandler.postDelayed(timerAccelerometerRunnable, user.sensorDelay.toLong())
                     //Write values

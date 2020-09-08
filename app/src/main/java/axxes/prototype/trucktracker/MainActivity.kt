@@ -156,11 +156,6 @@ class MainActivity : AppCompatActivity(),
         LocalBroadcastManager.getInstance(this).unregisterReceiver(
             mainServiceBroadcastReceiver
         )
-    }
-
-    override fun onDestroy() {
-        Log.d(TAG,"onDestroy()")
-        Log.d(TAG,"Myservice : $mainService")
         if (mainServiceBound && !waitResult) {
             if(!mainService!!.serviceRunning){
                 mainService!!.disconnectToBDO()
@@ -168,7 +163,10 @@ class MainActivity : AppCompatActivity(),
             unbindService(mainServiceConnection)
             mainServiceBound = false
         }
+    }
 
+    override fun onDestroy() {
+        Log.d(TAG,"onDestroy()")
         super.onDestroy()
     }
 
